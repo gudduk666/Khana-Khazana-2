@@ -480,61 +480,60 @@ export default function RestaurantBilling() {
                       </div>
                     ) : (
                       <>
-                        <Card className="flex flex-col overflow-hidden border-gray-200 bg-gray-50">
-                          <CardHeader className="bg-white border-b border-gray-200 px-3 py-2 flex-shrink-0">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-sm font-semibold text-gray-700">
-                                Cart Items ({cart.reduce((sum, i) => sum + i.quantity, 0)})
-                              </CardTitle>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="p-0">
-                            <div className="h-[250px] overflow-y-auto p-3 space-y-3">
-                              {cart.map(item => (
-                                  <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-3">
-                                    <div className="flex justify-between items-start gap-2">
-                                      <div className="flex-1">
-                                        <p className="font-medium text-sm text-gray-900">{item.name}</p>
-                                        <p className="text-xs text-gray-600">₹{item.price} each</p>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="outline"
-                                          className="h-7 w-7"
-                                          onClick={() => updateQuantity(item.id, -1)}
-                                        >
-                                          <Minus className="h-3 w-3" />
-                                        </Button>
-                                        <span className="w-8 text-center font-semibold">{item.quantity}</span>
-                                        <Button
-                                          size="icon"
-                                          variant="outline"
-                                          className="h-7 w-7"
-                                          onClick={() => updateQuantity(item.id, 1)}
-                                        >
-                                          <Plus className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          size="icon"
-                                          variant="destructive"
-                                          className="h-7 w-7 ml-1"
-                                          onClick={() => removeFromCart(item.id)}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between mb-3">
+                            <h3 className="text-sm font-semibold text-gray-700">
+                              Cart Items ({cart.reduce((sum, i) => sum + i.quantity, 0)})
+                            </h3>
+                          </div>
+
+                          <div className="h-[250px] overflow-y-auto space-y-3">
+                            {cart.map(item => (
+                              <Card key={item.id} className="border-gray-200">
+                                <CardContent className="p-3">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div className="flex-1">
+                                      <p className="font-medium text-sm text-gray-900">{item.name}</p>
+                                      <p className="text-xs text-gray-600">₹{item.price} each</p>
                                     </div>
-                                    <div className="mt-2 text-right">
-                                      <span className="font-semibold text-[#1E5BA8]">
-                                        ₹{(item.price * item.quantity).toLocaleString()}
-                                      </span>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        onClick={() => updateQuantity(item.id, -1)}
+                                      >
+                                        <Minus className="h-3 w-3" />
+                                      </Button>
+                                      <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                                      <Button
+                                        size="icon"
+                                        variant="outline"
+                                        className="h-7 w-7"
+                                        onClick={() => updateQuantity(item.id, 1)}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </Button>
+                                      <Button
+                                        size="icon"
+                                        variant="destructive"
+                                        className="h-7 w-7 ml-1"
+                                        onClick={() => removeFromCart(item.id)}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
                                     </div>
                                   </div>
-                                ))}
-                            </div>
-                          </CardContent>
-                        </Card>
+                                  <div className="mt-2 text-right">
+                                    <span className="font-semibold text-[#1E5BA8]">
+                                      ₹{(item.price * item.quantity).toLocaleString()}
+                                    </span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </div>
 
                         <Separator className="my-4 flex-shrink-0" />
 
