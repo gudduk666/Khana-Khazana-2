@@ -87,36 +87,15 @@ export default function RestaurantBilling() {
     addToCart,
     removeFromCart,
     updateQuantity,
-    setDiscount: setHookDiscount,
-    setCustomer: setHookCustomer,
-    setCart: setHookCart,
-    setEditingOrderId: setHookEditingOrderId,
+    setDiscount,
+    setCustomer,
+    setCart,
+    setEditingOrderId,
     saveOrder: saveOrderToBackend,
     editOrder,
     deleteOrder,
     reloadData,
   } = useRestaurantData()
-
-  // Sync local state with hook
-  const handleSetDiscount = (value: number) => {
-    setDiscount(value)
-    setHookDiscount(value)
-  }
-
-  const handleSetCustomer = (value: string) => {
-    setCustomer(value)
-    setHookCustomer(value)
-  }
-
-  const handleSetCart = (value: any[]) => {
-    setCart(value)
-    setHookCart(value)
-  }
-
-  const handleSetEditingOrderId = (value: string | null) => {
-    setEditingOrderId(value)
-    setHookEditingOrderId(value)
-  }
 
   // Filter menu items by category
   const filteredMenu = selectedCategory === 'All' || selectedCategory === 'Selected'
@@ -155,10 +134,10 @@ export default function RestaurantBilling() {
   const handleSaveAndSwitch = async () => {
     try {
       await saveOrderToBackend(orderType)
-      handleSetCart([])
-      handleSetDiscount(0)
-      handleSetCustomer('')
-      handleSetEditingOrderId(null)
+      setCart([])
+      setDiscount(0)
+      setCustomer('')
+      setEditingOrderId(null)
       setActiveTab(pendingTab!)
       setIsUnsavedChangesModalOpen(false)
       setPendingTab(null)
@@ -169,10 +148,10 @@ export default function RestaurantBilling() {
 
   // Discard and switch tab
   const handleDiscardAndSwitch = () => {
-    handleSetCart([])
-    handleSetDiscount(0)
-    handleSetCustomer('')
-    handleSetEditingOrderId(null)
+    setCart([])
+    setDiscount(0)
+    setCustomer('')
+    setEditingOrderId(null)
     setActiveTab(pendingTab!)
     setIsUnsavedChangesModalOpen(false)
     setPendingTab(null)
