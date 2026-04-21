@@ -259,66 +259,66 @@ export default function RestaurantBilling() {
     try {
       // First save the order
       const savedOrder = await saveOrderToBackend(orderType)
+
+      if (!savedOrder) {
+        alert('Failed to save order')
+        return
+      }
+
       alert('Order saved successfully!')
 
       // Then create and print the bill
-      const orderId = editingOrderId || savedOrder?.data?.id
-      if (orderId) {
-        const bill = await billsAPI.create({
-          orderId,
-          paymentMethod: 'Cash',
-          paymentStatus: 'paid',
-        })
+      const bill = await billsAPI.create({
+        orderId: savedOrder.id,
+        paymentMethod: 'Cash',
+        paymentStatus: 'paid',
+      })
 
-        const order = orders.find(o => o.id === orderId) || savedOrder?.data
-        if (order) {
-          // Print the bill
-          const printWindow = window.open('', '_blank')
-          if (printWindow) {
-            const billContent = `
-              <html>
-              <head>
-                <title>Bill - ${order.orderNumber}</title>
-                <style>
-                  body { font-family: Arial, sans-serif; padding: 20px; }
-                  .header { text-align: center; margin-bottom: 20px; }
-                  .items { margin-top: 20px; }
-                  .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
-                  .summary { margin-top: 20px; }
-                  .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
-                  .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
-                </style>
-              </head>
-              <body>
-                <div class="header">
-                  <h2>RESTAURANT BILL</h2>
-                  <p>${order.orderNumber}</p>
-                  <p>Date: ${new Date().toLocaleString()}</p>
-                  <p>Customer: ${order.customerName}</p>
-                  <p>Type: ${order.orderType}</p>
+      // Print the bill using the saved order data
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        const billContent = `
+          <html>
+          <head>
+            <title>Bill - ${savedOrder.orderNumber}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .items { margin-top: 20px; }
+              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
+              .summary { margin-top: 20px; }
+              .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
+              .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>RESTAURANT BILL</h2>
+              <p>${savedOrder.orderNumber}</p>
+              <p>Date: ${new Date().toLocaleString()}</p>
+              <p>Customer: ${savedOrder.customerName}</p>
+              <p>Type: ${savedOrder.orderType}</p>
+            </div>
+            <div class="items">
+              ${(savedOrder.items || []).map((item: any) => `
+                <div class="item">
+                  <span>${item.menuItem?.name || item.name} x ${item.quantity}</span>
+                  <span>₹${item.subtotal}</span>
                 </div>
-                <div class="items">
-                  ${(order.items || []).map((item: any) => `
-                    <div class="item">
-                      <span>${item.menuItem?.name || item.name} x ${item.quantity}</span>
-                      <span>₹${item.subtotal}</span>
-                    </div>
-                  `).join('')}
-                </div>
-                <div class="summary">
-                  <div class="summary-row"><span>Subtotal:</span><span>₹${order.subtotal}</span></div>
-                  <div class="summary-row"><span>GST (5%):</span><span>₹${order.tax}</span></div>
-                  ${order.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${order.discountAmount}</span></div>` : ''}
-                  <div class="total"><span>GRAND TOTAL:</span><span>₹${order.total}</span></div>
-                </div>
-              </body>
-              </html>
-            `
-            printWindow.document.write(billContent)
-            printWindow.document.close()
-            printWindow.print()
-          }
-        }
+              `).join('')}
+            </div>
+            <div class="summary">
+              <div class="summary-row"><span>Subtotal:</span><span>₹${savedOrder.subtotal}</span></div>
+              <div class="summary-row"><span>GST (5%):</span><span>₹${savedOrder.tax}</span></div>
+              ${savedOrder.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${savedOrder.discountAmount}</span></div>` : ''}
+              <div class="total"><span>GRAND TOTAL:</span><span>₹${savedOrder.total}</span></div>
+            </div>
+          </body>
+          </html>
+        `
+        printWindow.document.write(billContent)
+        printWindow.document.close()
+        printWindow.print()
       }
     } catch (error: any) {
       alert(error.message || 'Failed to save and print bill')

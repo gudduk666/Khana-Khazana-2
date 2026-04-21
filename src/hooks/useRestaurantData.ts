@@ -117,6 +117,7 @@ export function useRestaurantData() {
         price: item.price,
       }))
 
+      let savedOrder
       if (editingOrderId) {
         // Update existing order
         const res = await ordersAPI.updateItems(editingOrderId, items)
@@ -128,6 +129,7 @@ export function useRestaurantData() {
           order.id === editingOrderId ? res.data : order
         ))
         setEditingOrderId(null)
+        savedOrder = res.data
       } else {
         // Create new order
         const res = await ordersAPI.create({
@@ -137,6 +139,7 @@ export function useRestaurantData() {
           discountPercent: discount,
         })
         setOrders(prev => [res.data, ...prev])
+        savedOrder = res.data
       }
 
       // Reset cart
@@ -147,7 +150,7 @@ export function useRestaurantData() {
       // Reload data to ensure dashboard is up to date
       await loadData()
 
-      return true
+      return savedOrder
     } catch (error) {
       console.error('Error saving order:', error)
       throw error
