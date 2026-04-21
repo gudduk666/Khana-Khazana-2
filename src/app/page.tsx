@@ -461,29 +461,29 @@ export default function RestaurantBilling() {
                             </h3>
                           </div>
 
-                          <div className="space-y-2">
+                          <div className="space-y-1.5">
                             {cart.map(item => (
                               <Card key={item.id} className="border-gray-200">
                                 <CardContent className="p-2">
-                                  <div className="flex justify-between items-start gap-2">
+                                  <div className="flex justify-between items-center gap-2">
                                     <div className="flex-1">
                                       <p className="font-medium text-xs text-gray-900">{item.name}</p>
-                                      <p className="text-[10px] text-gray-600">₹{item.price} each</p>
                                     </div>
                                     <div className="flex items-center gap-1">
+                                      <span className="text-[10px] text-gray-600">₹{item.price}</span>
                                       <Button
                                         size="icon"
                                         variant="outline"
-                                        className="h-6 w-6"
+                                        className="h-5 w-5"
                                         onClick={() => updateQuantity(item.id, -1)}
                                       >
                                         <Minus className="h-2 w-2" />
                                       </Button>
-                                      <span className="w-6 text-center font-semibold text-xs">{item.quantity}</span>
+                                      <span className="w-5 text-center font-semibold text-xs">{item.quantity}</span>
                                       <Button
                                         size="icon"
                                         variant="outline"
-                                        className="h-6 w-6"
+                                        className="h-5 w-5"
                                         onClick={() => updateQuantity(item.id, 1)}
                                       >
                                         <Plus className="h-2 w-2" />
@@ -491,17 +491,15 @@ export default function RestaurantBilling() {
                                       <Button
                                         size="icon"
                                         variant="destructive"
-                                        className="h-6 w-6 ml-1"
+                                        className="h-5 w-5 ml-1"
                                         onClick={() => removeFromCart(item.id)}
                                       >
                                         <Trash2 className="h-2 w-2" />
                                       </Button>
+                                      <span className="font-semibold text-xs text-[#1E5BA8] ml-2">
+                                        ₹{item.price * item.quantity}
+                                      </span>
                                     </div>
-                                  </div>
-                                  <div className="mt-1 text-right">
-                                    <span className="font-semibold text-xs text-[#1E5BA8]">
-                                      ₹{(item.price * item.quantity).toLocaleString()}
-                                    </span>
                                   </div>
                                 </CardContent>
                               </Card>
