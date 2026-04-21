@@ -254,6 +254,77 @@ export default function RestaurantBilling() {
     }
   }
 
+  // Save and Print Bill
+  const saveAndPrintBill = async () => {
+    try {
+      // First save the order
+      const savedOrder = await saveOrderToBackend(orderType)
+      alert('Order saved successfully!')
+
+      // Then create and print the bill
+      const orderId = editingOrderId || savedOrder?.data?.id
+      if (orderId) {
+        const bill = await billsAPI.create({
+          orderId,
+          paymentMethod: 'Cash',
+          paymentStatus: 'paid',
+        })
+
+        const order = orders.find(o => o.id === orderId) || savedOrder?.data
+        if (order) {
+          // Print the bill
+          const printWindow = window.open('', '_blank')
+          if (printWindow) {
+            const billContent = `
+              <html>
+              <head>
+                <title>Bill - ${order.orderNumber}</title>
+                <style>
+                  body { font-family: Arial, sans-serif; padding: 20px; }
+                  .header { text-align: center; margin-bottom: 20px; }
+                  .items { margin-top: 20px; }
+                  .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
+                  .summary { margin-top: 20px; }
+                  .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
+                  .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h2>RESTAURANT BILL</h2>
+                  <p>${order.orderNumber}</p>
+                  <p>Date: ${new Date().toLocaleString()}</p>
+                  <p>Customer: ${order.customerName}</p>
+                  <p>Type: ${order.orderType}</p>
+                </div>
+                <div class="items">
+                  ${(order.items || []).map((item: any) => `
+                    <div class="item">
+                      <span>${item.menuItem?.name || item.name} x ${item.quantity}</span>
+                      <span>₹${item.subtotal}</span>
+                    </div>
+                  `).join('')}
+                </div>
+                <div class="summary">
+                  <div class="summary-row"><span>Subtotal:</span><span>₹${order.subtotal}</span></div>
+                  <div class="summary-row"><span>GST (5%):</span><span>₹${order.tax}</span></div>
+                  ${order.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${order.discountAmount}</span></div>` : ''}
+                  <div class="total"><span>GRAND TOTAL:</span><span>₹${order.total}</span></div>
+                </div>
+              </body>
+              </html>
+            `
+            printWindow.document.write(billContent)
+            printWindow.document.close()
+            printWindow.print()
+          }
+        }
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to save and print bill')
+    }
+  }
+
   // Print Bill
   const printBill = async () => {
     try {
@@ -662,7 +733,7 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Quick Action Buttons */}
-                        <div className="grid grid-cols-4 gap-2 mt-1 flex-shrink-0">
+                        <div className="grid grid-cols-3 gap-2 mt-1 flex-shrink-0">
                           <Button
                             variant="outline"
                             className="h-9 border-gray-300 text-xs"
@@ -672,7 +743,7 @@ export default function RestaurantBilling() {
                           </Button>
                           <Button
                             className="h-9 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 text-xs"
-                            onClick={saveOrder}
+                            onClick={saveAndPrintBill}
                           >
                             <Save className="h-3 w-3" />
                           </Button>
@@ -681,12 +752,6 @@ export default function RestaurantBilling() {
                             onClick={saveOrder}
                           >
                             <Zap className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            className="h-9 bg-green-500 hover:bg-green-600 text-xs"
-                            onClick={printBill}
-                          >
-                            <Printer className="h-3 w-3" />
                           </Button>
                         </div>
                       </>
@@ -1032,12 +1097,12 @@ export default function RestaurantBilling() {
 
             {/* Quick Action Buttons */}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 border-gray-300 h-9 text-xs" onClick={createKOT}>
+              <Button variant="outline" className="flex-1 border-gray-300 h-9 text-xs" onClick={printKOT}>
                 KOT
               </Button>
               <Button
                 className="flex-1 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 h-9 text-xs"
-                onClick={saveOrder}
+                onClick={saveAndPrintBill}
               >
                 <Save className="h-4 w-4 mr-2" />
                 Save & Print
@@ -1048,10 +1113,6 @@ export default function RestaurantBilling() {
               >
                 <Zap className="h-3 w-3 mr-1" />
                 Quick
-              </Button>
-              <Button className="flex-1 bg-green-500 hover:bg-green-600 h-9 text-xs" onClick={printBill}>
-                <Printer className="h-3 w-3 mr-1" />
-                Print
               </Button>
             </div>
           </div>
