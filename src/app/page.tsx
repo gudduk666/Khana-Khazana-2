@@ -293,13 +293,9 @@ export default function RestaurantBilling() {
               </Button>
               <div>
                 <h1 className="text-xl font-bold">
-                  {editingOrderId ? (
+                  {editingOrderId && (
                     <>
                       Editing: {recentOrders.find(o => o.id === editingOrderId)?.orderNumber}
-                    </>
-                  ) : (
-                    <>
-                      Current Order
                     </>
                   )}
                 </h1>
@@ -439,7 +435,6 @@ export default function RestaurantBilling() {
                   <CardHeader className="bg-gradient-to-r from-[#1E5BA8] to-[#2d7cd4] text-white rounded-t-lg flex-shrink-0">
                     <div className="flex items-center gap-2">
                       <ShoppingCart className="h-6 w-6" />
-                      <CardTitle className="text-xl">Current Order</CardTitle>
                     </div>
                     {editingOrderId && (
                       <p className="text-sm text-blue-100 mt-1">
@@ -1026,7 +1021,6 @@ export default function RestaurantBilling() {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl text-[#1E5BA8]">Bill Details</DialogTitle>
-            <DialogDescription>Current Order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg p-4">
