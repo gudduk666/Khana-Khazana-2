@@ -8,9 +8,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: any = {
-      status: 'completed',
-    }
+    const where: any = {}
 
     if (startDate) {
       where.createdAt = { ...where.createdAt, gte: new Date(startDate) }

@@ -59,7 +59,7 @@ export function useRestaurantData() {
       const [menuRes, catRes, ordersRes] = await Promise.all([
         menuItemsAPI.getAll({ active: true }),
         categoriesAPI.getAll(true),
-        ordersAPI.getAll({ limit: 20, status: 'completed' }),
+        ordersAPI.getAll({ limit: 20 }), // Fetch all orders regardless of status
       ])
 
       setMenuItems(menuRes.data || [])
@@ -143,6 +143,10 @@ export function useRestaurantData() {
       setCart([])
       setDiscount(0)
       setCustomer('')
+
+      // Reload data to ensure dashboard is up to date
+      await loadData()
+
       return true
     } catch (error) {
       console.error('Error saving order:', error)

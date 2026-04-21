@@ -8,11 +8,7 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: any = {
-      order: {
-        status: 'completed',
-      },
-    }
+    const where: any = {}
 
     if (startDate || endDate) {
       where.order.createdAt = {}
