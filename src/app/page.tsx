@@ -48,7 +48,7 @@ import {
   ShoppingCart
 } from 'lucide-react'
 import { useRestaurantData } from '@/hooks/useRestaurantData'
-import { kotsAPI, billsAPI } from '@/lib/api/client'
+import { kotsAPI, billsAPI, reportsAPI } from '@/lib/api/client'
 
 
 const TABLES = ['Dine In', 'Take Away', 'Delivery']
@@ -63,6 +63,12 @@ export default function RestaurantBilling() {
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false)
   const [pendingTab, setPendingTab] = useState<string | null>(null)
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false)
+
+  // Reports state
+  const [selectedReport, setSelectedReport] = useState<string | null>(null)
+  const [reportData, setReportData] = useState<any>(null)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [reportLoading, setReportLoading] = useState(false)
 
   // Use restaurant data hook
   const {
@@ -208,6 +214,171 @@ export default function RestaurantBilling() {
       alert('Bill created successfully!')
     } catch (error: any) {
       alert(error.message || 'Failed to create bill')
+    }
+  }
+
+  // Print KOT
+  const printKOT = async () => {
+    try {
+      if (cart.length === 0) {
+        alert('Please add items to the order first!')
+        return
+      }
+      const items = cart.map(item => ({
+        menuItemId: item.id,
+        quantity: item.quantity,
+      }))
+      await kotsAPI.create({
+        orderId: editingOrderId || 'temp',
+        items,
+      })
+      // Print the KOT
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        const kotContent = `
+          <html>
+          <head>
+            <title>KOT - Kitchen Order Ticket</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .items { margin-top: 20px; }
+              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
+              .total { margin-top: 20px; font-weight: bold; text-align: right; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>KITCHEN ORDER TICKET</h2>
+              <p>Order: ${editingOrderId || 'New'}</p>
+              <p>Date: ${new Date().toLocaleString()}</p>
+            </div>
+            <div class="items">
+              ${cart.map(item => `
+                <div class="item">
+                  <span>${item.name}</span>
+                  <span>${item.quantity}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div class="total">Total Items: ${cart.reduce((sum, i) => sum + i.quantity, 0)}</div>
+          </body>
+          </html>
+        `
+        printWindow.document.write(kotContent)
+        printWindow.document.close()
+        printWindow.print()
+      }
+      alert('KOT created and printed successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to print KOT')
+    }
+  }
+
+  // Print Bill
+  const printBill = async () => {
+    try {
+      if (!editingOrderId) {
+        alert('Please save the order first!')
+        return
+      }
+      const bill = await billsAPI.create({
+        orderId: editingOrderId,
+        paymentMethod: 'Cash',
+        paymentStatus: 'paid',
+      })
+      const order = orders.find(o => o.id === editingOrderId)
+      if (!order) {
+        alert('Order not found!')
+        return
+      }
+      // Print the bill
+      const printWindow = window.open('', '_blank')
+      if (printWindow) {
+        const billContent = `
+          <html>
+          <head>
+            <title>Bill - ${order.orderNumber}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              .header { text-align: center; margin-bottom: 20px; }
+              .items { margin-top: 20px; }
+              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
+              .summary { margin-top: 20px; }
+              .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
+              .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>RESTAURANT BILL</h2>
+              <p>${order.orderNumber}</p>
+              <p>Date: ${new Date().toLocaleString()}</p>
+              <p>Customer: ${order.customerName}</p>
+              <p>Type: ${order.orderType}</p>
+            </div>
+            <div class="items">
+              ${order.items.map((item: any) => `
+                <div class="item">
+                  <span>${item.menuItem.name} x ${item.quantity}</span>
+                  <span>₹${item.subtotal}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div class="summary">
+              <div class="summary-row"><span>Subtotal:</span><span>₹${order.subtotal}</span></div>
+              <div class="summary-row"><span>GST (5%):</span><span>₹${order.tax}</span></div>
+              ${order.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${order.discountAmount}</span></div>` : ''}
+              <div class="total"><span>GRAND TOTAL:</span><span>₹${order.total}</span></div>
+            </div>
+          </body>
+          </html>
+        `
+        printWindow.document.write(billContent)
+        printWindow.document.close()
+        printWindow.print()
+      }
+      alert('Bill printed successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to print bill')
+    }
+  }
+
+  // Fetch report data
+  const fetchReport = async (reportType: string) => {
+    try {
+      setReportLoading(true)
+      setSelectedReport(reportType)
+      let data
+
+      switch (reportType) {
+        case 'Sales Report':
+          data = await reportsAPI.sales()
+          break
+        case 'Item Wise':
+          data = await reportsAPI.itemWise()
+          break
+        case 'Category Wise':
+          data = await reportsAPI.categoryWise()
+          break
+        case 'Daily Report':
+          data = await reportsAPI.daily()
+          break
+        default:
+          // For other reports, show coming soon message
+          data = null
+          alert('This report is coming soon!')
+          break
+      }
+
+      if (data) {
+        setReportData(data.data)
+        setIsReportModalOpen(true)
+      }
+    } catch (error: any) {
+      alert(error.message || 'Failed to fetch report')
+    } finally {
+      setReportLoading(false)
     }
   }
 
@@ -516,7 +687,7 @@ export default function RestaurantBilling() {
                           <Button
                             variant="outline"
                             className="h-9 border-gray-300 text-xs"
-                            onClick={createKOT}
+                            onClick={printKOT}
                           >
                             KOT
                           </Button>
@@ -534,6 +705,7 @@ export default function RestaurantBilling() {
                           </Button>
                           <Button
                             className="h-9 bg-green-500 hover:bg-green-600 text-xs"
+                            onClick={printBill}
                           >
                             <Printer className="h-3 w-3" />
                           </Button>
@@ -746,12 +918,30 @@ export default function RestaurantBilling() {
             <div>
               <h3 className="font-semibold text-sm text-gray-700 mb-2">Quick Reports</h3>
               <div className="grid grid-cols-2 gap-3">
-                {['Sales Report', 'Item Wise', 'Category Wise', 'Staff Report', 'Customer Report', 'Payment Method', 'Hourly Report', 'Daily Report'].map((report) => (
-                  <Card key={report} className="border-gray-200 hover:shadow-md cursor-pointer">
+                {['Sales Report', 'Item Wise', 'Category Wise', 'Daily Report'].map((report) => (
+                  <Card
+                    key={report}
+                    className="border-gray-200 hover:shadow-md cursor-pointer"
+                    onClick={() => fetchReport(report)}
+                  >
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-[#1E5BA8]" />
                         <span className="text-sm font-medium">{report}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+                {['Staff Report', 'Customer Report', 'Payment Method', 'Hourly Report'].map((report) => (
+                  <Card
+                    key={report}
+                    className="border-gray-200 opacity-60"
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-500">{report}</span>
+                        <span className="text-xs text-gray-400 ml-auto">Coming Soon</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -763,11 +953,15 @@ export default function RestaurantBilling() {
               <h3 className="font-semibold text-sm text-gray-700 mb-2">Inventory Reports</h3>
               <div className="grid grid-cols-2 gap-3">
                 {['Stock Report', 'Wastage Report', 'Low Stock Items', 'Purchase Order'].map((report) => (
-                  <Card key={report} className="border-gray-200 hover:shadow-md cursor-pointer">
+                  <Card
+                    key={report}
+                    className="border-gray-200 opacity-60"
+                  >
                     <CardContent className="p-3">
                       <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-[#1E5BA8]" />
-                        <span className="text-sm font-medium">{report}</span>
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm font-medium text-gray-500">{report}</span>
+                        <span className="text-xs text-gray-400 ml-auto">Coming Soon</span>
                       </div>
                     </CardContent>
                   </Card>
@@ -876,7 +1070,7 @@ export default function RestaurantBilling() {
                 <Zap className="h-3 w-3 mr-1" />
                 Quick
               </Button>
-              <Button className="flex-1 bg-green-500 hover:bg-green-600 h-9 text-xs">
+              <Button className="flex-1 bg-green-500 hover:bg-green-600 h-9 text-xs" onClick={printBill}>
                 <Printer className="h-3 w-3 mr-1" />
                 Print
               </Button>
@@ -1163,6 +1357,153 @@ export default function RestaurantBilling() {
               <Save className="h-4 w-4 mr-2" />
               Save & Switch
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Modal */}
+      <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">{selectedReport}</DialogTitle>
+          </DialogHeader>
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-gray-500">Loading report...</p>
+            </div>
+          ) : reportData ? (
+            <div className="space-y-4">
+              {selectedReport === 'Sales Report' && reportData.summary && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Total Orders</p>
+                        <p className="text-2xl font-bold text-[#1E5BA8]">{reportData.summary.totalOrders}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Total Revenue</p>
+                        <p className="text-2xl font-bold text-green-600">₹{reportData.summary.totalRevenue?.toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Average Order Value</p>
+                        <p className="text-xl font-bold">₹{reportData.summary.avgOrderValue?.toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="p-4">
+                        <p className="text-sm text-gray-600">Total Tax</p>
+                        <p className="text-xl font-bold">₹{reportData.summary.totalTax?.toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Order Type Breakdown</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {Object.entries(reportData.orderTypeBreakdown || {}).map(([type, data]: [string, any]) => (
+                          <div key={type} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <span className="font-medium">{type}</span>
+                            <span className="text-sm">
+                              <span className="mr-4">{data.count} orders</span>
+                              <span className="font-bold text-[#1E5BA8]">₹{data.total?.toLocaleString()}</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {selectedReport === 'Item Wise' && reportData.items && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Top Selling Items</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-2">
+                        {reportData.items.map((item: any, index: number) => (
+                          <div key={item.itemId || index} className="flex justify-between items-center p-2 border-b">
+                            <div className="flex-1">
+                              <p className="font-medium">{item.itemName}</p>
+                              <p className="text-xs text-gray-500">{item.categoryName}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#1E5BA8]">{item.totalQuantity} qty</p>
+                              <p className="font-bold text-green-600">₹{item.totalRevenue?.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+
+              {selectedReport === 'Category Wise' && reportData.categories && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Sales by Category</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-2">
+                        {reportData.categories.map((cat: any, index: number) => (
+                          <div key={cat.categoryId || index} className="flex justify-between items-center p-2 border-b">
+                            <div className="flex-1">
+                              <p className="font-medium">{cat.categoryName}</p>
+                              <p className="text-xs text-gray-500">{cat.itemCount} items</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-[#1E5BA8]">{cat.totalQuantity} qty</p>
+                              <p className="font-bold text-green-600">₹{cat.totalRevenue?.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+
+              {selectedReport === 'Daily Report' && reportData.daily && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Daily Sales</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ScrollArea className="h-[400px]">
+                      <div className="space-y-2">
+                        {reportData.daily.map((day: any, index: number) => (
+                          <div key={index} className="flex justify-between items-center p-2 border-b">
+                            <div className="flex-1">
+                              <p className="font-medium">{day.date}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm mr-4">{day.orderCount} orders</p>
+                              <p className="font-bold text-[#1E5BA8]">₹{day.totalRevenue?.toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button onClick={() => setIsReportModalOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
