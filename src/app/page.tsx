@@ -298,12 +298,13 @@ export default function RestaurantBilling() {
                       Editing: {recentOrders.find(o => o.id === editingOrderId)?.orderNumber}
                     </>
                   ) : (
-                    <>{orderType}: TakeAway 1</>
+                    <>
+                      Current Order
+                    </>
                   )}
                 </h1>
                 <p className="text-sm text-blue-100">
-                  Table: {orderType}
-                  {editingOrderId && ' • Mode: Edit'}
+                  {editingOrderId && 'Mode: Edit'}
                   {` • ${activeTab}`}
                 </p>
               </div>
@@ -319,7 +320,6 @@ export default function RestaurantBilling() {
                     setDiscount(0)
                     setCustomer('')
                     setEditingOrderId(null)
-                    setOrderType('Dine In')
                   }}
                   title="Cancel Edit"
                 >
@@ -448,27 +448,6 @@ export default function RestaurantBilling() {
                     )}
                   </CardHeader>
                   <CardContent className="p-4 flex-1 flex flex-col overflow-y-auto">
-                    {/* Table/Order Type Selection */}
-                    <div className="space-y-2 mb-4 flex-shrink-0">
-                      <Label htmlFor="orderType" className="text-sm font-semibold text-gray-700">
-                        Order Type
-                      </Label>
-                      <Select value={orderType} onValueChange={(value) => setOrderType(value as any)}>
-                        <SelectTrigger id="orderType" className="w-full">
-                          <SelectValue placeholder="Select order type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {TABLES.map(table => (
-                            <SelectItem key={table} value={table}>
-                              {table}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <Separator className="my-4 flex-shrink-0" />
-
                     {/* Cart Items */}
                     {cart.length === 0 ? (
                       <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -708,7 +687,6 @@ export default function RestaurantBilling() {
                                     setCart(order.items)
                                     setDiscount(order.discount)
                                     setCustomer(order.customer)
-                                    setOrderType(order.orderType as any)
                                     setEditingOrderId(order.id)
                                     setActiveTab('quick-bill')
                                   }}
@@ -1048,7 +1026,7 @@ export default function RestaurantBilling() {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl text-[#1E5BA8]">Bill Details</DialogTitle>
-            <DialogDescription>{orderType} - TakeAway 1</DialogDescription>
+            <DialogDescription>Current Order</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-lg p-4">
