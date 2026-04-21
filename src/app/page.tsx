@@ -459,52 +459,52 @@ export default function RestaurantBilling() {
                       </div>
                     ) : (
                       <>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-sm font-semibold text-gray-700">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-xs font-semibold text-gray-700">
                               Cart Items ({cart.reduce((sum, i) => sum + i.quantity, 0)})
                             </h3>
                           </div>
 
-                          <div className="h-[200px] overflow-y-auto space-y-3">
+                          <div className="space-y-2">
                             {cart.map(item => (
                               <Card key={item.id} className="border-gray-200">
-                                <CardContent className="p-3">
+                                <CardContent className="p-2">
                                   <div className="flex justify-between items-start gap-2">
                                     <div className="flex-1">
-                                      <p className="font-medium text-sm text-gray-900">{item.name}</p>
-                                      <p className="text-xs text-gray-600">₹{item.price} each</p>
+                                      <p className="font-medium text-xs text-gray-900">{item.name}</p>
+                                      <p className="text-[10px] text-gray-600">₹{item.price} each</p>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <Button
                                         size="icon"
                                         variant="outline"
-                                        className="h-7 w-7"
+                                        className="h-6 w-6"
                                         onClick={() => updateQuantity(item.id, -1)}
                                       >
-                                        <Minus className="h-3 w-3" />
+                                        <Minus className="h-2 w-2" />
                                       </Button>
-                                      <span className="w-8 text-center font-semibold">{item.quantity}</span>
+                                      <span className="w-6 text-center font-semibold text-xs">{item.quantity}</span>
                                       <Button
                                         size="icon"
                                         variant="outline"
-                                        className="h-7 w-7"
+                                        className="h-6 w-6"
                                         onClick={() => updateQuantity(item.id, 1)}
                                       >
-                                        <Plus className="h-3 w-3" />
+                                        <Plus className="h-2 w-2" />
                                       </Button>
                                       <Button
                                         size="icon"
                                         variant="destructive"
-                                        className="h-7 w-7 ml-1"
+                                        className="h-6 w-6 ml-1"
                                         onClick={() => removeFromCart(item.id)}
                                       >
-                                        <Trash2 className="h-3 w-3" />
+                                        <Trash2 className="h-2 w-2" />
                                       </Button>
                                     </div>
                                   </div>
-                                  <div className="mt-2 text-right">
-                                    <span className="font-semibold text-[#1E5BA8]">
+                                  <div className="mt-1 text-right">
+                                    <span className="font-semibold text-xs text-[#1E5BA8]">
                                       ₹{(item.price * item.quantity).toLocaleString()}
                                     </span>
                                   </div>
@@ -514,10 +514,10 @@ export default function RestaurantBilling() {
                           </div>
                         </div>
 
-                        <Separator className="my-4 flex-shrink-0" />
+                        <Separator className="my-2 flex-shrink-0" />
 
                         {/* Action Buttons */}
-                        <div className="grid grid-cols-3 gap-2 mb-3 flex-shrink-0">
+                        <div className="grid grid-cols-3 gap-2 mb-2 flex-shrink-0">
                           <Button
                             variant="outline"
                             className="h-9 text-xs"
@@ -545,16 +545,16 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Bill Summary */}
-                        <div className="space-y-2 bg-orange-50 p-3 rounded-lg flex-shrink-0">
-                          <div className="flex justify-between text-sm">
+                        <div className="space-y-1 bg-orange-50 p-2 rounded-lg flex-shrink-0">
+                          <div className="flex justify-between text-xs">
                             <span className="text-gray-600">Subtotal</span>
-                            <span className="font-semibold">₹{subtotal.toLocaleString()}</span>
+                            <span className="font-semibold text-xs">₹{subtotal.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs">
                             <span className="text-gray-600">GST (5%)</span>
-                            <span className="font-semibold">₹{tax.toLocaleString()}</span>
+                            <span className="font-semibold text-xs">₹{tax.toLocaleString()}</span>
                           </div>
-                          <div className="flex justify-between items-center text-sm">
+                          <div className="flex justify-between items-center text-xs">
                             <span className="text-gray-600">Discount (%)</span>
                             <Input
                               type="number"
@@ -562,24 +562,24 @@ export default function RestaurantBilling() {
                               max="100"
                               value={discount}
                               onChange={(e) => setDiscount(Number(e.target.value))}
-                              className="w-20 h-8 text-right"
+                              className="w-16 h-7 text-right text-xs"
                             />
                           </div>
                           {discountAmount > 0 && (
-                            <div className="flex justify-between text-sm text-green-700">
+                            <div className="flex justify-between text-xs text-green-700">
                               <span>Discount Amount</span>
-                              <span className="font-semibold">-₹{discountAmount.toLocaleString()}</span>
+                              <span className="font-semibold text-xs">-₹{discountAmount.toLocaleString()}</span>
                             </div>
                           )}
                           <Separator />
-                          <div className="flex justify-between text-xl font-bold text-[#1E5BA8]">
+                          <div className="flex justify-between text-lg font-bold text-[#1E5BA8]">
                             <span>Grand Total</span>
                             <span>₹{total.toLocaleString()}</span>
                           </div>
                         </div>
 
                         {/* Quick Action Buttons */}
-                        <div className="grid grid-cols-4 gap-2 mt-3 flex-shrink-0">
+                        <div className="grid grid-cols-4 gap-2 mt-2 flex-shrink-0">
                           <Button variant="outline" className="h-9 border-gray-300 text-xs">
                             KOT
                           </Button>
