@@ -16,7 +16,11 @@ export async function GET(request: NextRequest) {
       include: {
         order: {
           include: {
-            items: true,
+            items: {
+              include: {
+                menuItem: true,
+              },
+            },
           },
         },
         items: {
@@ -84,22 +88,28 @@ export async function POST(request: NextRequest) {
     const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]))
 
     // Create KOT with items (with or without orderId)
-    const kot = await db.kOT.create({
-      data: {
-        kotNumber,
-        orderId: orderId || null,
-        status: 'pending',
-        items: {
-          create: items.map((item: any) => {
-            const menuItem = menuItemMap.get(item.menuItemId)
-            return {
-              menuItemId: item.menuItemId,
-              quantity: item.quantity,
-              notes: item.notes,
-            }
-          }),
-        },
+    const kotData: any = {
+      kotNumber,
+      status: 'pending',
+      items: {
+        create: items.map((item: any) => {
+          const menuItem = menuItemMap.get(item.menuItemId)
+          return {
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+            notes: item.notes,
+          }
+        }),
       },
+    }
+
+    // Only include orderId if it's provided
+    if (orderId) {
+      kotData.orderId = orderId
+    }
+
+    const kot = await db.kOT.create({
+      data: kotData,
       include: {
         order: {
           include: {
