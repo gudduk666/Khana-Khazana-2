@@ -488,10 +488,9 @@ export default function RestaurantBilling() {
                               </CardTitle>
                             </div>
                           </CardHeader>
-                          <CardContent className="p-0 overflow-hidden">
-                            <ScrollArea className="h-[250px]">
-                              <div className="p-3 space-y-3">
-                                {cart.map(item => (
+                          <CardContent className="p-0">
+                            <div className="h-[250px] overflow-y-auto p-3 space-y-3">
+                              {cart.map(item => (
                                   <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-3">
                                     <div className="flex justify-between items-start gap-2">
                                       <div className="flex-1">
@@ -534,7 +533,7 @@ export default function RestaurantBilling() {
                                   </div>
                                 ))}
                               </div>
-                            </ScrollArea>
+                            </div>
                           </CardContent>
                         </Card>
 
