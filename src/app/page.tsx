@@ -442,7 +442,7 @@ export default function RestaurantBilling() {
                       </p>
                     )}
                   </CardHeader>
-                  <CardContent className="p-4 flex-1 flex flex-col overflow-y-auto">
+                  <CardContent className="p-2 flex-1 flex flex-col overflow-y-auto">
                     {/* Cart Items */}
                     {cart.length === 0 ? (
                       <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -454,14 +454,13 @@ export default function RestaurantBilling() {
                       </div>
                     ) : (
                       <>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xs font-semibold text-gray-700">
-                              Cart Items ({cart.reduce((sum, i) => sum + i.quantity, 0)})
-                            </h3>
-                          </div>
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="text-xs font-semibold text-gray-700">
+                            Cart Items ({cart.length})
+                          </h3>
+                        </div>
 
-                          <div className="space-y-1.5">
+                        <div className="space-y-1">
                             {cart.map(item => (
                               <Card key={item.id} className="border-gray-200">
                                 <CardContent className="p-2">
