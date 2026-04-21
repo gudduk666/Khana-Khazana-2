@@ -46,26 +46,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { orderId, items } = body
 
-    if (!orderId || !items || items.length === 0) {
+    if (!items || items.length === 0) {
       return NextResponse.json(
-        { success: false, error: 'Order ID and items are required' },
+        { success: false, error: 'Items are required' },
         { status: 400 }
       )
     }
 
-    // Generate KOT number
-    const lastKOT = await db.kOT.findFirst({
+    // Get today's date at midnight for daily reset
+    const today = new Date()
+    const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0)
+
+    // Get last KOT for today to generate daily number
+    const lastKOTToday = await db.kOT.findFirst({
+      where: {
+        createdAt: {
+          gte: midnight,
+        },
+      },
       orderBy: { createdAt: 'desc' },
       select: { kotNumber: true },
     })
 
     let kotCounter = 1
-    if (lastKOT) {
-      const num = parseInt(lastKOT.kotNumber.replace(/\D/g, ''))
+    if (lastKOTToday && lastKOTToday.kotNumber) {
+      const num = parseInt(lastKOTToday.kotNumber.replace(/\D/g, ''))
       kotCounter = num + 1
     }
 
-    const kotNumber = `KOT ${kotCounter}`
+    const kotNumber = `KOT-${String(kotCounter).padStart(3, '0')}`
 
     // Get menu item prices
     const menuItems = await db.menuItem.findMany({
@@ -74,11 +83,11 @@ export async function POST(request: NextRequest) {
 
     const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]))
 
-    // Create KOT with items
+    // Create KOT with items (with or without orderId)
     const kot = await db.kOT.create({
       data: {
         kotNumber,
-        orderId,
+        orderId: orderId || null,
         status: 'pending',
         items: {
           create: items.map((item: any) => {
@@ -94,7 +103,11 @@ export async function POST(request: NextRequest) {
       include: {
         order: {
           include: {
-            items: true,
+            items: {
+              include: {
+                menuItem: true,
+              },
+            },
           },
         },
         items: {

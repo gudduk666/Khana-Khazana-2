@@ -94,12 +94,12 @@ model OrderItem {
 model KOT {
   id           String   @id @default(cuid())
   kotNumber    String
-  orderId      String
+  orderId      String?
   status       String   @default("pending") // pending, preparing, ready, served
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order        Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   items        KOTItem[]
 }
 

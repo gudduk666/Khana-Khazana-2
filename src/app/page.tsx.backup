@@ -170,21 +170,39 @@ export default function RestaurantBilling() {
         return
       }
 
+      // First save order if not already saved
+      let orderId = editingOrderId
+      let orderData
+
+      if (!orderId) {
+        const savedOrder = await saveOrderToBackend(orderType)
+        orderId = savedOrder?.id
+        orderData = savedOrder
+        if (!orderId) {
+          alert('Failed to save order')
+          return
+        }
+      } else {
+        // Get existing order data
+        orderData = orders.find(o => o.id === orderId)
+      }
+
+      // Create KOT
       const items = cart.map(item => ({
         menuItemId: item.id,
         quantity: item.quantity,
       }))
 
-      // Create KOT without requiring order save
-      const kot = await kotsAPI.create({
+      await kotsAPI.create({
+        orderId,
         items,
-        orderId: editingOrderId || undefined,
       })
 
-      // Print the KOT
+      // Print the KOT using cart items or order items
+      const itemsToPrint = orderData?.items || cart
+
       const printWindow = window.open('', '_blank')
       if (printWindow) {
-        const hasOrder = kot.data.order !== null
         const kotContent = `
           <html>
           <head>
@@ -192,32 +210,26 @@ export default function RestaurantBilling() {
             <style>
               body { font-family: Arial, sans-serif; padding: 20px; }
               .header { text-align: center; margin-bottom: 20px; }
-              .kot-number { font-size: 24px; font-weight: bold; color: #1E5BA8; }
               .items { margin-top: 20px; }
-              .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc; }
-              .item-name { font-weight: bold; }
-              .total { margin-top: 20px; font-weight: bold; text-align: right; font-size: 16px; }
-              .order-info { color: #666; font-size: 14px; }
+              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
+              .total { margin-top: 20px; font-weight: bold; text-align: right; }
             </style>
           </head>
           <body>
             <div class="header">
-              <div class="kot-number">${kot.data.kotNumber}</div>
-              ${hasOrder ? `<div class="order-info">Order: ${kot.data.order.orderNumber}</div>` : ''}
-              <div class="order-info">Date: ${new Date().toLocaleString()}</div>
-              ${hasOrder ? `<div class="order-info">Customer: ${kot.data.order.customerName}</div>` : ''}
+              <h2>KITCHEN ORDER TICKET</h2>
+              <p>Order: ${orderData?.orderNumber || 'New'}</p>
+              <p>Date: ${new Date().toLocaleString()}</p>
             </div>
             <div class="items">
-              ${(kot.data.items || []).map((item: any) => `
+              ${itemsToPrint.map((item: any) => `
                 <div class="item">
-                  <span class="item-name">${item.menuItem.name} x ${item.quantity}</span>
+                  <span>${item.menuItem?.name || item.name}</span>
                   <span>${item.quantity}</span>
                 </div>
               `).join('')}
             </div>
-            <div class="total">
-              Total Items: ${(kot.data.items || []).reduce((sum, i) => sum + i.quantity, 0)}
-            </div>
+            <div class="total">Total Items: ${itemsToPrint.reduce((sum, i) => sum + (i.quantity || 1), 0)}</div>
           </body>
           </html>
         `
