@@ -532,7 +532,6 @@ export default function RestaurantBilling() {
                                     </div>
                                   </div>
                                 ))}
-                              </div>
                             </div>
                           </CardContent>
                         </Card>
