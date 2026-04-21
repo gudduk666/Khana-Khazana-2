@@ -164,35 +164,30 @@ export default function RestaurantBilling() {
         alert('Please add items to the order first!')
         return
       }
+
+      // First save order if not already saved
+      let orderId = editingOrderId
+      if (!orderId) {
+        const savedOrder = await saveOrderToBackend(orderType)
+        orderId = savedOrder?.id
+        if (!orderId) {
+          alert('Failed to save order')
+          return
+        }
+      }
+
       const items = cart.map(item => ({
         menuItemId: item.id,
         quantity: item.quantity,
       }))
+
       await kotsAPI.create({
-        orderId: editingOrderId || 'temp',
+        orderId,
         items,
       })
       alert('KOT created successfully!')
     } catch (error: any) {
       alert(error.message || 'Failed to create KOT')
-    }
-  }
-
-  // Create Bill
-  const createBill = async () => {
-    try {
-      if (!editingOrderId) {
-        alert('Please save the order first!')
-        return
-      }
-      await billsAPI.create({
-        orderId: editingOrderId,
-        paymentMethod: 'Cash',
-        paymentStatus: 'paid',
-      })
-      alert('Bill created successfully!')
-    } catch (error: any) {
-      alert(error.message || 'Failed to create bill')
     }
   }
 
@@ -203,15 +198,38 @@ export default function RestaurantBilling() {
         alert('Please add items to the order first!')
         return
       }
+
+      // First save order if not already saved
+      let orderId = editingOrderId
+      let orderData
+
+      if (!orderId) {
+        const savedOrder = await saveOrderToBackend(orderType)
+        orderId = savedOrder?.id
+        orderData = savedOrder
+        if (!orderId) {
+          alert('Failed to save order')
+          return
+        }
+      } else {
+        // Get existing order data
+        orderData = orders.find(o => o.id === orderId)
+      }
+
+      // Create KOT
       const items = cart.map(item => ({
         menuItemId: item.id,
         quantity: item.quantity,
       }))
+
       await kotsAPI.create({
-        orderId: editingOrderId || 'temp',
+        orderId,
         items,
       })
-      // Print the KOT
+
+      // Print the KOT using cart items or order items
+      const itemsToPrint = orderData?.items || cart
+
       const printWindow = window.open('', '_blank')
       if (printWindow) {
         const kotContent = `
@@ -229,18 +247,18 @@ export default function RestaurantBilling() {
           <body>
             <div class="header">
               <h2>KITCHEN ORDER TICKET</h2>
-              <p>Order: ${editingOrderId || 'New'}</p>
+              <p>Order: ${orderData?.orderNumber || 'New'}</p>
               <p>Date: ${new Date().toLocaleString()}</p>
             </div>
             <div class="items">
-              ${cart.map(item => `
+              ${itemsToPrint.map((item: any) => `
                 <div class="item">
-                  <span>${item.name}</span>
+                  <span>${item.menuItem?.name || item.name}</span>
                   <span>${item.quantity}</span>
                 </div>
               `).join('')}
             </div>
-            <div class="total">Total Items: ${cart.reduce((sum, i) => sum + i.quantity, 0)}</div>
+            <div class="total">Total Items: ${itemsToPrint.reduce((sum, i) => sum + (i.quantity || 1), 0)}</div>
           </body>
           </html>
         `
