@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -44,170 +44,87 @@ import {
   X,
   Eye,
   Pencil,
-  Trash2
+  Trash2,
+  ShoppingCart
 } from 'lucide-react'
+import { useRestaurantData } from '@/hooks/useRestaurantData'
+import { kotsAPI, billsAPI } from '@/lib/api/client'
 
-// Types
-interface MenuItem {
-  id: string
-  name: string
-  category: string
-  price: number
-  description: string
-  image?: string
-}
 
-interface CartItem extends MenuItem {
-  quantity: number
-}
-
-interface SavedOrder {
-  id: string
-  orderNumber: string
-  items: CartItem[]
-  orderType: string
-  subtotal: number
-  tax: number
-  discount: number
-  discountAmount: number
-  total: number
-  customer: string
-  createdAt: Date
-  status: 'completed' | 'pending' | 'cancelled'
-}
-
-// Sample menu data
-const MENU_ITEMS: MenuItem[] = [
-  // Biryani
-  { id: '1', name: 'Chicken Biryani', category: 'Biryani', price: 180, description: 'Aromatic basmati rice with tender chicken' },
-  { id: '2', name: 'Mutton Biryani', category: 'Biryani', price: 240, description: 'Slow-cooked mutton with fragrant rice' },
-  { id: '3', name: 'Veg Biryani', category: 'Biryani', price: 140, description: 'Mixed vegetables in spiced rice' },
-  { id: '4', name: 'Egg Biryani', category: 'Biryani', price: 120, description: 'Boiled eggs in flavorful rice' },
-
-  // Chicken
-  { id: '5', name: 'Chicken Fried Rice', category: 'Chicken', price: 150, description: 'Fried rice with chicken pieces' },
-  { id: '6', name: 'Chicken Noodles', category: 'Chicken', price: 130, description: 'Stir-fried noodles with chicken' },
-  { id: '7', name: 'Chicken Manchurian', category: 'Chicken', price: 160, description: 'Indo-Chinese chicken balls' },
-  { id: '8', name: 'Chilli Chicken', category: 'Chicken', price: 180, description: 'Spicy chicken with peppers' },
-
-  // Add Ons
-  { id: '9', name: 'Extra Chicken', category: 'Add On', price: 80, description: 'Additional chicken pieces' },
-  { id: '10', name: 'Extra Rice', category: 'Add On', price: 30, description: 'Additional rice serving' },
-  { id: '11', name: 'Egg', category: 'Add On', price: 20, description: 'Boiled egg' },
-  { id: '12', name: 'Curry', category: 'Add On', price: 60, description: 'Extra gravy curry' },
-]
-
-const CATEGORIES = ['Selected', 'All', 'Add On', 'Biryani', 'Chicken']
 const TABLES = ['Dine In', 'Take Away', 'Delivery']
-const KITCHEN_TICKETS = ['KOT 1', 'KOT 2', 'KOT 3']
 
 export default function RestaurantBilling() {
   const [activeTab, setActiveTab] = useState('quick-bill')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [orderType, setOrderType] = useState('Dine In')
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [discount, setDiscount] = useState(0)
-  const [customer, setCustomer] = useState('')
   const [isBillModalOpen, setIsBillModalOpen] = useState(false)
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false)
-  const [recentOrders, setRecentOrders] = useState<SavedOrder[]>([])
-  const [orderNumberCounter, setOrderNumberCounter] = useState(0)
-  const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
-  const [viewingOrder, setViewingOrder] = useState<SavedOrder | null>(null)
+  const [viewingOrder, setViewingOrder] = useState<any>(null)
   const [isViewOrderModalOpen, setIsViewOrderModalOpen] = useState(false)
   const [pendingTab, setPendingTab] = useState<string | null>(null)
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false)
 
+  // Use restaurant data hook
+  const {
+    menuItems,
+    categories,
+    orders,
+    cart,
+    loading,
+    editingOrderId,
+    discount,
+    customer,
+    subtotal,
+    tax,
+    discountAmount,
+    total,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    setDiscount: setHookDiscount,
+    setCustomer: setHookCustomer,
+    setCart: setHookCart,
+    setEditingOrderId: setHookEditingOrderId,
+    saveOrder: saveOrderToBackend,
+    editOrder,
+    deleteOrder,
+    reloadData,
+  } = useRestaurantData()
+
+  // Sync local state with hook
+  const handleSetDiscount = (value: number) => {
+    setDiscount(value)
+    setHookDiscount(value)
+  }
+
+  const handleSetCustomer = (value: string) => {
+    setCustomer(value)
+    setHookCustomer(value)
+  }
+
+  const handleSetCart = (value: any[]) => {
+    setCart(value)
+    setHookCart(value)
+  }
+
+  const handleSetEditingOrderId = (value: string | null) => {
+    setEditingOrderId(value)
+    setHookEditingOrderId(value)
+  }
+
   // Filter menu items by category
   const filteredMenu = selectedCategory === 'All' || selectedCategory === 'Selected'
-    ? MENU_ITEMS
-    : MENU_ITEMS.filter(item => item.category === selectedCategory)
-
-  // Add item to cart
-  const addToCart = (item: MenuItem) => {
-    setCart(prev => {
-      const existing = prev.find(i => i.id === item.id)
-      if (existing) {
-        return prev.map(i =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
-        )
-      }
-      return [...prev, { ...item, quantity: 1 }]
-    })
-  }
-
-  // Remove item from cart
-  const removeFromCart = (itemId: string) => {
-    setCart(prev => prev.filter(i => i.id !== itemId))
-  }
-
-  // Update quantity
-  const updateQuantity = (itemId: string, delta: number) => {
-    setCart(prev => prev.map(i => {
-      if (i.id === itemId) {
-        const newQuantity = i.quantity + delta
-        if (newQuantity <= 0) {
-          return null
-        }
-        return { ...i, quantity: newQuantity }
-      }
-      return i
-    }).filter(i => i !== null))
-  }
+    ? menuItems
+    : menuItems.filter(item => item.category?.name === selectedCategory)
 
   // Save order
-  const saveOrder = () => {
-    if (cart.length === 0) {
-      alert('Please add items to the order first!')
-      return
+  const saveOrder = async () => {
+    try {
+      await saveOrderToBackend(orderType)
+      alert('Order saved successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to save order')
     }
-
-    if (editingOrderId) {
-      // Update existing order
-      setRecentOrders(prev => prev.map(order => {
-        if (order.id === editingOrderId) {
-          return {
-            ...order,
-            items: [...cart],
-            orderType,
-            subtotal,
-            tax,
-            discount,
-            discountAmount,
-            total,
-            customer: customer || 'Guest',
-          }
-        }
-        return order
-      }))
-      alert(`Order #${recentOrders.find(o => o.id === editingOrderId)?.orderNumber} updated successfully!`)
-    } else {
-      // Create new order
-      const newOrder: SavedOrder = {
-        id: Date.now().toString(),
-        orderNumber: `#000${orderNumberCounter + 1}`,
-        items: [...cart],
-        orderType,
-        subtotal,
-        tax,
-        discount,
-        discountAmount,
-        total,
-        customer: customer || 'Guest',
-        createdAt: new Date(),
-        status: 'completed'
-      }
-
-      setRecentOrders(prev => [newOrder, ...prev])
-      setOrderNumberCounter(prev => prev + 1)
-      alert(`Order ${newOrder.orderNumber} saved successfully!`)
-    }
-
-    // Reset form
-    setCart([])
-    setDiscount(0)
-    setCustomer('')
-    setEditingOrderId(null)
   }
 
   // Handle tab change with unsaved changes check
@@ -229,57 +146,70 @@ export default function RestaurantBilling() {
   }
 
   // Save and switch tab
-  const handleSaveAndSwitch = () => {
-    if (cart.length === 0) {
-      alert('Please add items to the order first!')
-      return
+  const handleSaveAndSwitch = async () => {
+    try {
+      await saveOrderToBackend(orderType)
+      handleSetCart([])
+      handleSetDiscount(0)
+      handleSetCustomer('')
+      handleSetEditingOrderId(null)
+      setActiveTab(pendingTab!)
+      setIsUnsavedChangesModalOpen(false)
+      setPendingTab(null)
+    } catch (error: any) {
+      alert(error.message || 'Failed to save order')
     }
-
-    // Create new order
-    const newOrder: SavedOrder = {
-      id: Date.now().toString(),
-      orderNumber: `#000${orderNumberCounter + 1}`,
-      items: [...cart],
-      orderType,
-      subtotal,
-      tax,
-      discount,
-      discountAmount,
-      total,
-      customer: customer || 'Guest',
-      createdAt: new Date(),
-      status: 'completed'
-    }
-
-    setRecentOrders(prev => [newOrder, ...prev])
-    setOrderNumberCounter(prev => prev + 1)
-
-    // Reset form and switch tab
-    setCart([])
-    setDiscount(0)
-    setCustomer('')
-    setEditingOrderId(null)
-    setActiveTab(pendingTab!)
-    setIsUnsavedChangesModalOpen(false)
-    setPendingTab(null)
   }
 
   // Discard and switch tab
   const handleDiscardAndSwitch = () => {
-    setCart([])
-    setDiscount(0)
-    setCustomer('')
-    setEditingOrderId(null)
+    handleSetCart([])
+    handleSetDiscount(0)
+    handleSetCustomer('')
+    handleSetEditingOrderId(null)
     setActiveTab(pendingTab!)
     setIsUnsavedChangesModalOpen(false)
     setPendingTab(null)
   }
 
-  // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  const tax = Math.round(subtotal * 0.05)
-  const discountAmount = Math.round(subtotal * (discount / 100))
-  const total = subtotal + tax - discountAmount
+  // Create KOT
+  const createKOT = async () => {
+    try {
+      if (cart.length === 0) {
+        alert('Please add items to the order first!')
+        return
+      }
+      const items = cart.map(item => ({
+        menuItemId: item.id,
+        quantity: item.quantity,
+      }))
+      await kotsAPI.create({
+        orderId: editingOrderId || 'temp',
+        items,
+      })
+      alert('KOT created successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to create KOT')
+    }
+  }
+
+  // Create Bill
+  const createBill = async () => {
+    try {
+      if (!editingOrderId) {
+        alert('Please save the order first!')
+        return
+      }
+      await billsAPI.create({
+        orderId: editingOrderId,
+        paymentMethod: 'Cash',
+        paymentStatus: 'paid',
+      })
+      alert('Bill created successfully!')
+    } catch (error: any) {
+      alert(error.message || 'Failed to create bill')
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -295,7 +225,7 @@ export default function RestaurantBilling() {
                 <h1 className="text-xl font-bold">
                   {editingOrderId && (
                     <>
-                      Editing: {recentOrders.find(o => o.id === editingOrderId)?.orderNumber}
+                      Editing: {orders.find(o => o.id === editingOrderId)?.orderNumber}
                     </>
                   )}
                 </h1>
@@ -366,18 +296,30 @@ export default function RestaurantBilling() {
                 {/* Category Tabs */}
                 <div className="mb-4 overflow-x-auto">
                   <div className="flex gap-2 pb-2">
-                    {CATEGORIES.map(cat => (
+                    <Button
+                      key="All"
+                      variant={selectedCategory === 'All' ? 'default' : 'outline'}
+                      onClick={() => setSelectedCategory('All')}
+                      className={`whitespace-nowrap ${
+                        selectedCategory === 'All'
+                          ? 'bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 text-white'
+                          : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
+                      }`}
+                    >
+                      All
+                    </Button>
+                    {categories.map(cat => (
                       <Button
-                        key={cat}
-                        variant={selectedCategory === cat ? 'default' : 'outline'}
-                        onClick={() => setSelectedCategory(cat)}
+                        key={cat.id}
+                        variant={selectedCategory === cat.name ? 'default' : 'outline'}
+                        onClick={() => setSelectedCategory(cat.name)}
                         className={`whitespace-nowrap ${
-                          selectedCategory === cat
+                          selectedCategory === cat.name
                             ? 'bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 text-white'
                             : 'bg-white hover:bg-gray-100 text-gray-700 border-gray-300'
                         }`}
                       >
-                        {cat}
+                        {cat.name}
                       </Button>
                     ))}
                   </div>
@@ -438,7 +380,7 @@ export default function RestaurantBilling() {
                     </div>
                     {editingOrderId && (
                       <p className="text-sm text-blue-100 mt-1">
-                        Editing: {recentOrders.find(o => o.id === editingOrderId)?.orderNumber}
+                        Editing: {orders.find(o => o.id === editingOrderId)?.orderNumber}
                       </p>
                     )}
                   </CardHeader>
@@ -571,7 +513,11 @@ export default function RestaurantBilling() {
 
                         {/* Quick Action Buttons */}
                         <div className="grid grid-cols-4 gap-2 mt-1 flex-shrink-0">
-                          <Button variant="outline" className="h-9 border-gray-300 text-xs">
+                          <Button
+                            variant="outline"
+                            className="h-9 border-gray-300 text-xs"
+                            onClick={createKOT}
+                          >
                             KOT
                           </Button>
                           <Button
@@ -608,14 +554,14 @@ export default function RestaurantBilling() {
               <Card className="border-gray-200">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-600">Today's Orders</p>
-                  <p className="text-2xl font-bold text-gray-900">{recentOrders.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
                 </CardContent>
               </Card>
               <Card className="border-gray-200">
                 <CardContent className="p-4">
                   <p className="text-sm text-gray-600">Total Amount</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    ₹{recentOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
+                    ₹{orders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
                   </p>
                 </CardContent>
               </Card>
@@ -625,12 +571,12 @@ export default function RestaurantBilling() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg">Recent Orders</CardTitle>
-                  <Badge variant="secondary">{recentOrders.length} orders</Badge>
+                  <Badge variant="secondary">{orders.length} orders</Badge>
                 </div>
               </CardHeader>
               <CardContent className="flex-1">
                 <ScrollArea className="h-[calc(100vh-380px)]">
-                  {recentOrders.length === 0 ? (
+                  {orders.length === 0 ? (
                     <div className="text-center py-12 text-gray-500">
                       <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
                       <p className="text-lg">No orders yet</p>
@@ -638,8 +584,9 @@ export default function RestaurantBilling() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {recentOrders.map((order) => {
-                        const timeDiff = Math.floor((Date.now() - order.createdAt.getTime()) / (1000 * 60 * 60))
+                      {orders.map((order) => {
+                        const createdAt = typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt
+                        const timeDiff = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60))
                         const timeAgo = timeDiff < 1 ? 'Just now' : `${timeDiff}h ago`
 
                         return (
@@ -675,10 +622,7 @@ export default function RestaurantBilling() {
                                   variant="outline"
                                   className="flex-1 h-8 text-xs"
                                   onClick={() => {
-                                    setCart(order.items)
-                                    setDiscount(order.discount)
-                                    setCustomer(order.customer)
-                                    setEditingOrderId(order.id)
+                                    editOrder(order)
                                     setActiveTab('quick-bill')
                                   }}
                                 >
@@ -689,9 +633,14 @@ export default function RestaurantBilling() {
                                   size="sm"
                                   variant="outline"
                                   className="flex-1 h-8 text-xs border-red-300 text-red-600 hover:bg-red-50"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     if (confirm(`Delete ${order.orderNumber}?`)) {
-                                      setRecentOrders(prev => prev.filter(o => o.id !== order.id))
+                                      try {
+                                        await deleteOrder(order.id)
+                                        alert('Order deleted successfully!')
+                                      } catch (error: any) {
+                                        alert(error.message || 'Failed to delete order')
+                                      }
                                     }
                                   }}
                                 >
@@ -744,7 +693,7 @@ export default function RestaurantBilling() {
             </div>
 
             <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">Total Products: {MENU_ITEMS.length}</p>
+              <p className="text-sm text-gray-600">Total Products: {menuItems.length}</p>
               <Button className="bg-[#1E5BA8] hover:bg-[#1E5BA8]/90">
                 <Plus className="h-4 w-4 mr-2" />
                 Add Product
@@ -752,7 +701,7 @@ export default function RestaurantBilling() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              {MENU_ITEMS.slice(0, 8).map((item) => (
+              {menuItems.slice(0, 8).map((item) => (
                 <Card key={item.id} className="border-gray-200 overflow-hidden">
                   <div className="bg-[#1E5BA8] text-white px-3 py-1 flex items-center justify-between">
                     <Badge className="bg-green-500 hover:bg-green-500 text-white border-0">Active</Badge>
@@ -762,7 +711,7 @@ export default function RestaurantBilling() {
                   </div>
                   <CardContent className="p-3">
                     <h3 className="font-semibold text-sm truncate">{item.name}</h3>
-                    <p className="text-xs text-gray-600 mb-2">{item.category}</p>
+                    <p className="text-xs text-gray-600 mb-2">{item.category?.name}</p>
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-xs text-gray-500">Price (w/ GST)</p>
@@ -910,7 +859,7 @@ export default function RestaurantBilling() {
 
             {/* Quick Action Buttons */}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 border-gray-300 h-9 text-xs">
+              <Button variant="outline" className="flex-1 border-gray-300 h-9 text-xs" onClick={createKOT}>
                 KOT
               </Button>
               <Button
