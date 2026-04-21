@@ -504,7 +504,6 @@ export default function RestaurantBilling() {
                               </Card>
                             ))}
                           </div>
-                        </div>
 
                         <Separator className="my-2 flex-shrink-0" />
 
