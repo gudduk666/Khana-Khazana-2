@@ -442,7 +442,7 @@ export default function RestaurantBilling() {
                       </p>
                     )}
                   </CardHeader>
-                  <CardContent className="p-2 flex-1 flex flex-col overflow-y-auto">
+                  <CardContent className="p-1.5 flex-1 flex flex-col overflow-y-auto">
                     {/* Cart Items */}
                     {cart.length === 0 ? (
                       <div className="flex-1 flex items-center justify-center text-gray-500">
@@ -454,13 +454,13 @@ export default function RestaurantBilling() {
                       </div>
                     ) : (
                       <>
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between">
                           <h3 className="text-xs font-semibold text-gray-700">
                             Cart Items ({cart.length})
                           </h3>
                         </div>
 
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                             {cart.map(item => (
                               <Card key={item.id} className="border-gray-200">
                                 <CardContent className="p-2">
@@ -505,10 +505,10 @@ export default function RestaurantBilling() {
                             ))}
                           </div>
 
-                        <Separator className="my-2 flex-shrink-0" />
+                        <Separator className="my-1 flex-shrink-0" />
 
                         {/* Action Buttons */}
-                        <div className="grid grid-cols-3 gap-2 mb-2 flex-shrink-0">
+                        <div className="grid grid-cols-3 gap-2 mb-1 flex-shrink-0">
                           <Button
                             variant="outline"
                             className="h-9 text-xs"
@@ -536,7 +536,7 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Bill Summary */}
-                        <div className="space-y-1 bg-orange-50 p-2 rounded-lg flex-shrink-0">
+                        <div className="space-y-1 bg-orange-50 p-1.5 rounded-lg flex-shrink-0">
                           <div className="flex justify-between text-xs">
                             <span className="text-gray-600">Subtotal</span>
                             <span className="font-semibold text-xs">₹{subtotal.toLocaleString()}</span>
@@ -570,7 +570,7 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Quick Action Buttons */}
-                        <div className="grid grid-cols-4 gap-2 mt-2 flex-shrink-0">
+                        <div className="grid grid-cols-4 gap-2 mt-1 flex-shrink-0">
                           <Button variant="outline" className="h-9 border-gray-300 text-xs">
                             KOT
                           </Button>
