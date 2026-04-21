@@ -435,7 +435,7 @@ export default function RestaurantBilling() {
 
               {/* Right Side - Cart Panel (Desktop Only) */}
               <div className="hidden lg:block lg:w-80 xl:w-[350px]">
-                <Card className="sticky top-4 h-[calc(100vh-200px)] flex flex-col">
+                <Card className="sticky top-4 max-h-[calc(100vh-100px)] flex flex-col">
                   <CardHeader className="bg-gradient-to-r from-[#1E5BA8] to-[#2d7cd4] text-white rounded-t-lg flex-shrink-0">
                     <div className="flex items-center gap-2">
                       <ShoppingCart className="h-6 w-6" />
@@ -447,7 +447,7 @@ export default function RestaurantBilling() {
                       </p>
                     )}
                   </CardHeader>
-                  <CardContent className="p-4 flex-1 flex flex-col overflow-hidden">
+                  <CardContent className="p-4 flex-1 flex flex-col overflow-y-auto">
                     {/* Table/Order Type Selection */}
                     <div className="space-y-2 mb-4 flex-shrink-0">
                       <Label htmlFor="orderType" className="text-sm font-semibold text-gray-700">
