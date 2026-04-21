@@ -389,7 +389,7 @@ export default function RestaurantBilling() {
 
                 {/* Menu Grid */}
                 <ScrollArea className="h-[calc(100vh-280px)] lg:h-[calc(100vh-200px)] pr-2">
-                  <div className="grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredMenu.map(item => {
                       const cartItem = cart.find(i => i.id === item.id)
                       return (
@@ -434,7 +434,7 @@ export default function RestaurantBilling() {
               </div>
 
               {/* Right Side - Cart Panel (Desktop Only) */}
-              <div className="hidden lg:block lg:w-96 xl:w-[420px]">
+              <div className="hidden lg:block lg:w-80 xl:w-[350px]">
                 <Card className="sticky top-4 h-[calc(100vh-200px)] flex flex-col">
                   <CardHeader className="bg-gradient-to-r from-[#1E5BA8] to-[#2d7cd4] text-white rounded-t-lg flex-shrink-0">
                     <div className="flex items-center gap-2">
@@ -487,7 +487,7 @@ export default function RestaurantBilling() {
                             </h3>
                           </div>
 
-                          <div className="h-[250px] overflow-y-auto space-y-3">
+                          <div className="h-[200px] overflow-y-auto space-y-3">
                             {cart.map(item => (
                               <Card key={item.id} className="border-gray-200">
                                 <CardContent className="p-3">
@@ -538,26 +538,26 @@ export default function RestaurantBilling() {
                         <Separator className="my-4 flex-shrink-0" />
 
                         {/* Action Buttons */}
-                        <div className="grid grid-cols-3 gap-2 mb-4 flex-shrink-0">
+                        <div className="grid grid-cols-3 gap-2 mb-3 flex-shrink-0">
                           <Button
                             variant="outline"
-                            className="h-10"
+                            className="h-9 text-xs"
                             onClick={() => setCustomer(customer || 'Guest')}
                           >
-                            <User className="h-4 w-4 mr-1" />
+                            <User className="h-3 w-3 mr-1" />
                             <span className="text-xs">Customer</span>
                           </Button>
                           <Button
                             variant="outline"
-                            className="h-10"
+                            className="h-9 text-xs"
                             onClick={() => setIsDiscountModalOpen(true)}
                           >
-                            <Percent className="h-4 w-4 mr-1" />
+                            <Percent className="h-3 w-3 mr-1" />
                             <span className="text-xs">Discount</span>
                           </Button>
                           <Button
                             variant="outline"
-                            className="h-10"
+                            className="h-9 text-xs"
                             onClick={() => setIsBillModalOpen(true)}
                           >
                             <Eye className="h-4 w-4 mr-1" />
@@ -566,7 +566,7 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Bill Summary */}
-                        <div className="space-y-3 bg-orange-50 p-4 rounded-lg flex-shrink-0">
+                        <div className="space-y-2 bg-orange-50 p-3 rounded-lg flex-shrink-0">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600">Subtotal</span>
                             <span className="font-semibold">₹{subtotal.toLocaleString()}</span>
@@ -600,26 +600,26 @@ export default function RestaurantBilling() {
                         </div>
 
                         {/* Quick Action Buttons */}
-                        <div className="grid grid-cols-4 gap-2 mt-4 flex-shrink-0">
-                          <Button variant="outline" className="h-10 border-gray-300 text-sm">
+                        <div className="grid grid-cols-4 gap-2 mt-3 flex-shrink-0">
+                          <Button variant="outline" className="h-9 border-gray-300 text-xs">
                             KOT
                           </Button>
                           <Button
-                            className="h-10 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 text-sm"
+                            className="h-9 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 text-xs"
                             onClick={saveOrder}
                           >
-                            <Save className="h-4 w-4" />
+                            <Save className="h-3 w-3" />
                           </Button>
                           <Button
-                            className="h-10 bg-green-500 hover:bg-green-600 text-sm"
+                            className="h-9 bg-green-500 hover:bg-green-600 text-xs"
                             onClick={saveOrder}
                           >
-                            <Zap className="h-4 w-4" />
+                            <Zap className="h-3 w-3" />
                           </Button>
                           <Button
-                            className="h-10 bg-green-500 hover:bg-green-600 text-sm"
+                            className="h-9 bg-green-500 hover:bg-green-600 text-xs"
                           >
-                            <Printer className="h-4 w-4" />
+                            <Printer className="h-3 w-3" />
                           </Button>
                         </div>
                       </>
@@ -899,67 +899,67 @@ export default function RestaurantBilling() {
       {/* Bottom Action Bar (Only for Quick Bill on Mobile) */}
       {activeTab === 'quick-bill' && cart.length > 0 && (
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 lg:hidden">
-          <div className="px-4 py-3 space-y-3">
+          <div className="px-3 py-2 space-y-2">
             {/* Action Buttons */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 h-9 text-xs"
                 onClick={() => setCustomer(customer || 'Guest')}
               >
-                <User className="h-4 w-4 mr-2" />
+                <User className="h-3 w-3 mr-1" />
                 Customer
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 h-9 text-xs"
                 onClick={() => setIsDiscountModalOpen(true)}
               >
-                <Percent className="h-4 w-4 mr-2" />
+                <Percent className="h-3 w-3 mr-1" />
                 Discount
               </Button>
               <Button
                 variant="outline"
-                className="flex-1"
+                className="flex-1 h-9 text-xs"
                 onClick={() => setIsBillModalOpen(true)}
               >
-                <Eye className="h-4 w-4 mr-2" />
+                <Eye className="h-3 w-3 mr-1" />
                 View Bill
               </Button>
             </div>
 
             {/* Total Display */}
-            <div className="flex items-center justify-between bg-[#1E5BA8] text-white px-4 py-3 rounded-lg">
+            <div className="flex items-center justify-between bg-[#1E5BA8] text-white px-3 py-2 rounded-lg">
               <div className="flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5" />
-                <span className="text-sm">Total Items: {cart.reduce((sum, i) => sum + i.quantity, 0)}</span>
+                <ShoppingCart className="h-4 w-4" />
+                <span className="text-xs">Items: {cart.reduce((sum, i) => sum + i.quantity, 0)}</span>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">₹{total.toLocaleString()}</p>
+                <p className="text-lg font-bold">₹{total.toLocaleString()}</p>
               </div>
             </div>
 
             {/* Quick Action Buttons */}
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 border-gray-300">
+              <Button variant="outline" className="flex-1 border-gray-300 h-9 text-xs">
                 KOT
               </Button>
               <Button
-                className="flex-1 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90"
+                className="flex-1 bg-[#1E5BA8] hover:bg-[#1E5BA8]/90 h-9 text-xs"
                 onClick={saveOrder}
               >
                 <Save className="h-4 w-4 mr-2" />
                 Save & Print
               </Button>
               <Button
-                className="flex-1 bg-green-500 hover:bg-green-600"
+                className="flex-1 bg-green-500 hover:bg-green-600 h-9 text-xs"
                 onClick={saveOrder}
               >
-                <Zap className="h-4 w-4 mr-2" />
-                Quick Save
+                <Zap className="h-3 w-3 mr-1" />
+                Quick
               </Button>
-              <Button className="flex-1 bg-green-500 hover:bg-green-600">
-                <Printer className="h-4 w-4 mr-2" />
+              <Button className="flex-1 bg-green-500 hover:bg-green-600 h-9 text-xs">
+                <Printer className="h-3 w-3 mr-1" />
                 Print
               </Button>
             </div>
