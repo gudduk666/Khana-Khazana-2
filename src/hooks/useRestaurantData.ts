@@ -49,10 +49,6 @@ export function useRestaurantData() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
 
   // Load data
-  useEffect(() => {
-    loadData()
-  }, [])
-
   const loadData = async () => {
     try {
       setLoading(true)
@@ -71,6 +67,11 @@ export function useRestaurantData() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData()
+  }, [])
 
   // Add item to cart
   const addToCart = (item: MenuItem) => {
