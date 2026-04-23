@@ -45,15 +45,22 @@ import {
   Eye,
   Pencil,
   Trash2,
-  ShoppingCart
+  ShoppingCart,
+  LogOut,
+  Settings
 } from 'lucide-react'
 import { useRestaurantData } from '@/hooks/useRestaurantData'
-import { kotsAPI, billsAPI, reportsAPI } from '@/lib/api/client'
+import { useRestaurantSettings } from '@/hooks/useRestaurantSettings'
+import { useAuth } from '@/lib/auth'
+import { AuthForm } from '@/components/AuthForm'
+import { RestaurantSettings } from '@/components/RestaurantSettings'
 
 
 const TABLES = ['Dine In', 'Take Away', 'Delivery']
 
 export default function RestaurantBilling() {
+  // Call all hooks first, before any conditional logic
+  const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState('quick-bill')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [orderType, setOrderType] = useState('Dine In')
@@ -70,7 +77,6 @@ export default function RestaurantBilling() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [reportLoading, setReportLoading] = useState(false)
 
-  // Use restaurant data hook
   const {
     menuItems,
     categories,
@@ -96,6 +102,13 @@ export default function RestaurantBilling() {
     deleteOrder,
     reloadData,
   } = useRestaurantData()
+
+  const { settings } = useRestaurantSettings()
+
+  // Check authentication after all hooks are defined
+  if (!user) {
+    return <AuthForm />
+  }
 
   // Filter menu items by category
   const filteredMenu = selectedCategory === 'All' || selectedCategory === 'Selected'
@@ -170,53 +183,57 @@ export default function RestaurantBilling() {
         return
       }
 
-      const items = cart.map(item => ({
-        menuItemId: item.id,
-        quantity: item.quantity,
-      }))
-
-      // Create KOT without requiring order save
-      const kot = await kotsAPI.create({
-        items,
-        orderId: editingOrderId || undefined,
-      })
-
-      // Print the KOT
+      const kotNumber = `KOT-${Math.floor(100000 + Math.random() * 900000)}`
       const printWindow = window.open('', '_blank')
       if (printWindow) {
-        const hasOrder = kot.data.order !== null
         const kotContent = `
           <html>
           <head>
             <title>KOT - Kitchen Order Ticket</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              .header { text-align: center; margin-bottom: 20px; }
-              .kot-number { font-size: 24px; font-weight: bold; color: #1E5BA8; }
-              .items { margin-top: 20px; }
-              .item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ccc; }
-              .item-name { font-weight: bold; }
-              .total { margin-top: 20px; font-weight: bold; text-align: right; font-size: 16px; }
-              .order-info { color: #666; font-size: 14px; }
+              body {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.2;
+                margin: 0;
+                padding: 5px;
+                width: 80mm;
+                max-width: 80mm;
+              }
+              .center { text-align: center; }
+              .bold { font-weight: bold; }
+              .divider { border-top: 1px dashed #000; margin: 5px 0; }
+              .item { display: flex; justify-content: space-between; margin: 2px 0; }
+              .item-name { flex: 1; }
+              .item-price { text-align: right; }
+              .total-line { display: flex; justify-content: space-between; font-weight: bold; margin: 3px 0; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <div class="kot-number">${kot.data.kotNumber}</div>
-              ${hasOrder ? `<div class="order-info">Order: ${kot.data.order.orderNumber}</div>` : ''}
-              <div class="order-info">Date: ${new Date().toLocaleString()}</div>
-              ${hasOrder ? `<div class="order-info">Customer: ${kot.data.order.customerName}</div>` : ''}
+            <div class="center bold">
+              ${settings.name}<br>
+              KITCHEN ORDER TICKET
             </div>
-            <div class="items">
-              ${(kot.data.items || []).map((item: any) => `
-                <div class="item">
-                  <span class="item-name">${item.menuItem.name} x ${item.quantity}</span>
-                  <span>${item.quantity}</span>
-                </div>
-              `).join('')}
+            <div class="divider"></div>
+            <div class="center">
+              KOT: ${kotNumber}<br>
+              Date: ${new Date().toLocaleDateString()}<br>
+              Time: ${new Date().toLocaleTimeString()}<br>
+              Type: ${orderType}
             </div>
-            <div class="total">
-              Total Items: ${(kot.data.items || []).reduce((sum, i) => sum + i.quantity, 0)}
+            <div class="divider"></div>
+            <div class="bold center">ORDER ITEMS</div>
+            <div class="divider"></div>
+            ${cart.map(item => `
+              <div class="item">
+                <span class="item-name">${item.name} x${item.quantity}</span>
+                <span class="item-price">₹${item.price * item.quantity}</span>
+              </div>
+            `).join('')}
+            <div class="divider"></div>
+            <div class="total-line">
+              <span>Total Items:</span>
+              <span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span>
             </div>
           </body>
           </html>
@@ -234,7 +251,7 @@ export default function RestaurantBilling() {
   // Save and Print Bill
   const saveAndPrintBill = async () => {
     try {
-      // First save the order
+      // First save the order locally
       const savedOrder = await saveOrderToBackend(orderType)
 
       if (!savedOrder) {
@@ -244,13 +261,6 @@ export default function RestaurantBilling() {
 
       alert('Order saved successfully!')
 
-      // Then create and print the bill
-      const bill = await billsAPI.create({
-        orderId: savedOrder.id,
-        paymentMethod: 'Cash',
-        paymentStatus: 'paid',
-      })
-
       // Print the bill using the saved order data
       const printWindow = window.open('', '_blank')
       if (printWindow) {
@@ -259,36 +269,68 @@ export default function RestaurantBilling() {
           <head>
             <title>Bill - ${savedOrder.orderNumber}</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              .header { text-align: center; margin-bottom: 20px; }
-              .items { margin-top: 20px; }
-              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
-              .summary { margin-top: 20px; }
-              .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
-              .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
+              body {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.2;
+                margin: 0;
+                padding: 5px;
+                width: 80mm;
+                max-width: 80mm;
+              }
+              .center { text-align: center; }
+              .bold { font-weight: bold; }
+              .divider { border-top: 1px dashed #000; margin: 5px 0; }
+              .item { display: flex; justify-content: space-between; margin: 2px 0; }
+              .item-name { flex: 1; }
+              .item-price { text-align: right; }
+              .total-line { display: flex; justify-content: space-between; font-weight: bold; margin: 3px 0; }
+              .thank-you { text-align: center; margin-top: 10px; font-weight: bold; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <h2>RESTAURANT BILL</h2>
-              <p>${savedOrder.orderNumber}</p>
-              <p>Date: ${new Date().toLocaleString()}</p>
-              <p>Customer: ${savedOrder.customerName}</p>
-              <p>Type: ${savedOrder.orderType}</p>
+            <div class="center bold">
+              ${settings.name}<br>
+              ${settings.address}<br>
+              Phone: ${settings.mobile}<br>
+              GST No: ${settings.gstNumber}<br>
+              FSSAI No: ${settings.fssiNumber}
             </div>
-            <div class="items">
-              ${(savedOrder.items || []).map((item: any) => `
-                <div class="item">
-                  <span>${item.menuItem?.name || item.name} x ${item.quantity}</span>
-                  <span>₹${item.subtotal}</span>
-                </div>
-              `).join('')}
+            <div class="divider"></div>
+            <div class="center">
+              Order: ${savedOrder.orderNumber}<br>
+              Date: ${new Date(savedOrder.createdAt).toLocaleDateString()}<br>
+              Time: ${new Date(savedOrder.createdAt).toLocaleTimeString()}<br>
+              Type: ${savedOrder.orderType}
             </div>
-            <div class="summary">
-              <div class="summary-row"><span>Subtotal:</span><span>₹${savedOrder.subtotal}</span></div>
-              <div class="summary-row"><span>GST (5%):</span><span>₹${savedOrder.tax}</span></div>
-              ${savedOrder.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${savedOrder.discountAmount}</span></div>` : ''}
-              <div class="total"><span>GRAND TOTAL:</span><span>₹${savedOrder.total}</span></div>
+            <div class="divider"></div>
+            <div class="bold center">BILL DETAILS</div>
+            <div class="divider"></div>
+            ${savedOrder.items.map((item: any) => `
+              <div class="item">
+                <span class="item-name">${item.menuItem?.name || item.name} x${item.quantity}</span>
+                <span class="item-price">₹${item.subtotal}</span>
+              </div>
+            `).join('')}
+            <div class="divider"></div>
+            <div class="total-line">
+              <span>Subtotal:</span>
+              <span>₹${savedOrder.subtotal}</span>
+            </div>
+            <div class="total-line">
+              <span>GST (5%):</span>
+              <span>₹${savedOrder.tax}</span>
+            </div>
+            ${savedOrder.discountAmount > 0 ? `<div class="total-line"><span>Discount:</span><span>-₹${savedOrder.discountAmount}</span></div>` : ''}
+            <div class="divider"></div>
+            <div class="total-line">
+              <span>GRAND TOTAL:</span>
+              <span>₹${savedOrder.total}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="thank-you">
+              Thank You!<br>
+              Visit Again!
             </div>
           </body>
           </html>
@@ -309,17 +351,11 @@ export default function RestaurantBilling() {
         alert('Please save the order first!')
         return
       }
-      const bill = await billsAPI.create({
-        orderId: editingOrderId,
-        paymentMethod: 'Cash',
-        paymentStatus: 'paid',
-      })
       const order = orders.find(o => o.id === editingOrderId)
       if (!order) {
         alert('Order not found!')
         return
       }
-      // Print the bill
       const printWindow = window.open('', '_blank')
       if (printWindow) {
         const billContent = `
@@ -327,36 +363,68 @@ export default function RestaurantBilling() {
           <head>
             <title>Bill - ${order.orderNumber}</title>
             <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              .header { text-align: center; margin-bottom: 20px; }
-              .items { margin-top: 20px; }
-              .item { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #ccc; }
-              .summary { margin-top: 20px; }
-              .summary-row { display: flex; justify-content: space-between; padding: 5px 0; }
-              .total { margin-top: 10px; font-weight: bold; text-align: right; font-size: 18px; }
+              body {
+                font-family: 'Courier New', monospace;
+                font-size: 12px;
+                line-height: 1.2;
+                margin: 0;
+                padding: 5px;
+                width: 80mm;
+                max-width: 80mm;
+              }
+              .center { text-align: center; }
+              .bold { font-weight: bold; }
+              .divider { border-top: 1px dashed #000; margin: 5px 0; }
+              .item { display: flex; justify-content: space-between; margin: 2px 0; }
+              .item-name { flex: 1; }
+              .item-price { text-align: right; }
+              .total-line { display: flex; justify-content: space-between; font-weight: bold; margin: 3px 0; }
+              .thank-you { text-align: center; margin-top: 10px; font-weight: bold; }
             </style>
           </head>
           <body>
-            <div class="header">
-              <h2>RESTAURANT BILL</h2>
-              <p>${order.orderNumber}</p>
-              <p>Date: ${new Date().toLocaleString()}</p>
-              <p>Customer: ${order.customerName}</p>
-              <p>Type: ${order.orderType}</p>
+            <div class="center bold">
+              ${settings.name}<br>
+              ${settings.address}<br>
+              Phone: ${settings.mobile}<br>
+              GST No: ${settings.gstNumber}<br>
+              FSSAI No: ${settings.fssiNumber}
             </div>
-            <div class="items">
-              ${order.items.map((item: any) => `
-                <div class="item">
-                  <span>${item.menuItem.name} x ${item.quantity}</span>
-                  <span>₹${item.subtotal}</span>
-                </div>
-              `).join('')}
+            <div class="divider"></div>
+            <div class="center">
+              Order: ${order.orderNumber}<br>
+              Date: ${new Date(order.createdAt).toLocaleDateString()}<br>
+              Time: ${new Date(order.createdAt).toLocaleTimeString()}<br>
+              Type: ${order.orderType}
             </div>
-            <div class="summary">
-              <div class="summary-row"><span>Subtotal:</span><span>₹${order.subtotal}</span></div>
-              <div class="summary-row"><span>GST (5%):</span><span>₹${order.tax}</span></div>
-              ${order.discountAmount > 0 ? `<div class="summary-row"><span>Discount:</span><span>-₹${order.discountAmount}</span></div>` : ''}
-              <div class="total"><span>GRAND TOTAL:</span><span>₹${order.total}</span></div>
+            <div class="divider"></div>
+            <div class="bold center">BILL DETAILS</div>
+            <div class="divider"></div>
+            ${order.items.map((item: any) => `
+              <div class="item">
+                <span class="item-name">${item.menuItem.name} x${item.quantity}</span>
+                <span class="item-price">₹${item.subtotal}</span>
+              </div>
+            `).join('')}
+            <div class="divider"></div>
+            <div class="total-line">
+              <span>Subtotal:</span>
+              <span>₹${order.subtotal}</span>
+            </div>
+            <div class="total-line">
+              <span>GST (5%):</span>
+              <span>₹${order.tax}</span>
+            </div>
+            ${order.discountAmount > 0 ? `<div class="total-line"><span>Discount:</span><span>-₹${order.discountAmount}</span></div>` : ''}
+            <div class="divider"></div>
+            <div class="total-line">
+              <span>GRAND TOTAL:</span>
+              <span>₹${order.total}</span>
+            </div>
+            <div class="divider"></div>
+            <div class="thank-you">
+              Thank You!<br>
+              Visit Again!
             </div>
           </body>
           </html>
@@ -376,32 +444,92 @@ export default function RestaurantBilling() {
     try {
       setReportLoading(true)
       setSelectedReport(reportType)
-      let data
+
+      const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0)
+      const totalTax = orders.reduce((sum, order) => sum + order.tax, 0)
+      const orderTypeBreakdown = orders.reduce<Record<string, { count: number; total: number }>>((acc, order) => {
+        const existing = acc[order.orderType] || { count: 0, total: 0 }
+        existing.count += 1
+        existing.total += order.total
+        acc[order.orderType] = existing
+        return acc
+      }, {})
+
+      let data: any = null
 
       switch (reportType) {
         case 'Sales Report':
-          data = await reportsAPI.sales()
+          data = {
+            summary: {
+              totalOrders: orders.length,
+              totalRevenue,
+              avgOrderValue: orders.length ? Math.round(totalRevenue / orders.length) : 0,
+              totalTax,
+            },
+            orderTypeBreakdown,
+          }
           break
         case 'Item Wise':
-          data = await reportsAPI.itemWise()
+          const itemMap = orders.flatMap(order => order.items).reduce<Record<string, any>>((acc, item) => {
+            const itemId = item.menuItem.id
+            if (!acc[itemId]) {
+              acc[itemId] = {
+                itemId,
+                itemName: item.menuItem.name,
+                categoryName: item.menuItem.category.name,
+                totalQuantity: 0,
+                totalRevenue: 0,
+              }
+            }
+            acc[itemId].totalQuantity += item.quantity
+            acc[itemId].totalRevenue += item.subtotal
+            return acc
+          }, {})
+          data = { items: Object.values(itemMap).sort((a, b) => b.totalQuantity - a.totalQuantity) }
           break
         case 'Category Wise':
-          data = await reportsAPI.categoryWise()
+          const categoryMap = orders.flatMap(order => order.items).reduce<Record<string, any>>((acc, item) => {
+            const categoryId = item.menuItem.category.id
+            if (!acc[categoryId]) {
+              acc[categoryId] = {
+                categoryId,
+                categoryName: item.menuItem.category.name,
+                totalQuantity: 0,
+                totalRevenue: 0,
+                itemCount: 0,
+              }
+            }
+            acc[categoryId].totalQuantity += item.quantity
+            acc[categoryId].totalRevenue += item.subtotal
+            acc[categoryId].itemCount += 1
+            return acc
+          }, {})
+          data = { categories: Object.values(categoryMap) }
           break
         case 'Daily Report':
-          data = await reportsAPI.daily()
+          const dailyMap = orders.reduce<Record<string, any>>((acc, order) => {
+            const date = new Date(order.createdAt).toLocaleDateString()
+            if (!acc[date]) {
+              acc[date] = {
+                date,
+                orderCount: 0,
+                totalRevenue: 0,
+              }
+            }
+            acc[date].orderCount += 1
+            acc[date].totalRevenue += order.total
+            return acc
+          }, {})
+          data = { daily: Object.values(dailyMap).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()) }
           break
         default:
-          // For other reports, show coming soon message
           data = null
           alert('This report is coming soon!')
           break
       }
 
-      if (data) {
-        setReportData(data.data)
-        setIsReportModalOpen(true)
-      }
+      setReportData(data)
+      setIsReportModalOpen(true)
     } catch (error: any) {
       alert(error.message || 'Failed to fetch report')
     } finally {
@@ -776,7 +904,7 @@ export default function RestaurantBilling() {
                       <p className="text-sm">Save an order to see it here</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-4 gap-2">
                       {orders.map((order) => {
                         const createdAt = typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt
                         const timeDiff = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60))
@@ -784,61 +912,53 @@ export default function RestaurantBilling() {
 
                         return (
                           <Card key={order.id} className="border-gray-200">
-                            <CardContent className="p-3">
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-semibold text-sm">{order.orderNumber}</p>
-                                  <p className="text-xs text-gray-600">{order.orderType} • {timeAgo}</p>
-                                  {order.customer !== 'Guest' && (
-                                    <p className="text-xs text-gray-500">{order.customer}</p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <p className="font-bold">₹{order.total.toLocaleString()}</p>
-                                </div>
-                              </div>
-                              <div className="flex gap-2 mt-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 h-8 text-xs"
-                                  onClick={() => {
-                                    setViewingOrder(order)
-                                    setIsViewOrderModalOpen(true)
-                                  }}
-                                >
-                                  <Eye className="h-3 w-3 mr-1" />
-                                  View
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 h-8 text-xs"
-                                  onClick={() => {
-                                    editOrder(order)
-                                    setActiveTab('quick-bill')
-                                  }}
-                                >
-                                  <Pencil className="h-3 w-3 mr-1" />
-                                  Edit
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="flex-1 h-8 text-xs border-red-300 text-red-600 hover:bg-red-50"
-                                  onClick={async () => {
-                                    if (confirm(`Delete ${order.orderNumber}?`)) {
-                                      try {
-                                        await deleteOrder(order.id)
-                                        alert('Order deleted successfully!')
-                                      } catch (error: any) {
-                                        alert(error.message || 'Failed to delete order')
+                            <CardContent className="p-2">
+                              <div className="text-center">
+                                <p className="font-bold text-sm text-[#1E5BA8]">{order.orderNumber}</p>
+                                <p className="text-xs text-gray-600">{order.orderType}</p>
+                                <p className="font-semibold text-sm">₹{order.total.toLocaleString()}</p>
+                                <p className="text-xs text-gray-500">{timeAgo}</p>
+                                <div className="flex gap-1 mt-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 h-6 text-xs px-1"
+                                    onClick={() => {
+                                      setViewingOrder(order)
+                                      setIsViewOrderModalOpen(true)
+                                    }}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 h-6 text-xs px-1"
+                                    onClick={() => {
+                                      editOrder(order)
+                                      setActiveTab('quick-bill')
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1 h-6 text-xs px-1 border-red-300 text-red-600 hover:bg-red-50"
+                                    onClick={async () => {
+                                      if (confirm(`Delete ${order.orderNumber}?`)) {
+                                        try {
+                                          await deleteOrder(order.id)
+                                          alert('Order deleted successfully!')
+                                        } catch (error: any) {
+                                          alert(error.message || 'Failed to delete order')
+                                        }
                                       }
-                                    }
-                                  }}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
+                                    }}
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>
@@ -1023,6 +1143,21 @@ export default function RestaurantBilling() {
                     </div>
                   </Button>
                 ))}
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start h-auto py-3 px-4 hover:bg-red-50 text-red-600"
+                  onClick={() => {
+                    if (confirm('Are you sure you want to logout?')) {
+                      logout()
+                    }
+                  }}
+                >
+                  <LogOut className="h-5 w-5 mr-3" />
+                  <div className="text-left">
+                    <p className="font-medium">Logout</p>
+                    <p className="text-xs text-red-500">Sign out of your account</p>
+                  </div>
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -1094,6 +1229,13 @@ export default function RestaurantBilling() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Settings Tab */}
+      {activeTab === 'settings' && (
+        <main className="flex-1 pb-20">
+          <RestaurantSettings />
+        </main>
       )}
 
       {/* Bottom Navigation */}
@@ -1168,6 +1310,20 @@ export default function RestaurantBilling() {
           >
             <MoreHorizontal className="h-5 w-5" />
             <span className="text-xs">More</span>
+          </Button>
+          <Button
+            variant="ghost"
+            className={`flex-1 flex-col gap-1 h-full rounded-none ${
+              activeTab === 'settings' ? 'text-red-600 font-bold' : 'text-gray-500'
+            }`}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleTabChange('settings')
+            }}
+          >
+            <Settings className="h-5 w-5" />
+            <span className="text-xs">Settings</span>
           </Button>
         </div>
       </nav>
@@ -1275,13 +1431,13 @@ export default function RestaurantBilling() {
             <>
               <div className="space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4">
-                  {viewingOrder.items.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
+                  {viewingOrder.items.map((item, index) => (
+                    <div key={`${item.menuItem.id}-${index}`} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-0">
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{item.name}</p>
-                        <p className="text-xs text-gray-600">₹{item.price} × {item.quantity}</p>
+                        <p className="font-medium text-sm">{item.menuItem.name}</p>
+                        <p className="text-xs text-gray-600">₹{item.menuItem.price} × {item.quantity}</p>
                       </div>
-                      <p className="font-semibold">₹{(item.price * item.quantity).toLocaleString()}</p>
+                      <p className="font-semibold">₹{item.subtotal.toLocaleString()}</p>
                     </div>
                   ))}
                 </div>

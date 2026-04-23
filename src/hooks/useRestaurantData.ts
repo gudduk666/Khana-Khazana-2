@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { menuItemsAPI, categoriesAPI, ordersAPI, kotsAPI, billsAPI } from '@/lib/api/client'
+import { useEffect, useState } from 'react'
 
 export interface MenuItem {
   id: string
@@ -34,46 +33,129 @@ export interface Order {
   status: string
   notes?: string
   createdAt: string
-  items: any[]
-  customer?: any
+  items: Array<{
+    menuItem: MenuItem
+    quantity: number
+    subtotal: number
+  }>
+}
+
+const DEFAULT_CATEGORIES = [
+  { id: '1', name: 'Starters' },
+  { id: '2', name: 'Main Course' },
+  { id: '3', name: 'Desserts' },
+  { id: '4', name: 'Beverages' },
+]
+
+const DEFAULT_MENU_ITEMS: MenuItem[] = [
+  {
+    id: '1',
+    name: 'Paneer Tikka',
+    category: { id: '1', name: 'Starters' },
+    price: 220,
+    description: 'Soft paneer cubes marinated with spices and grilled to perfection.',
+    active: true,
+  },
+  {
+    id: '2',
+    name: 'Hara Bhara Kebab',
+    category: { id: '1', name: 'Starters' },
+    price: 180,
+    description: 'Vegetable kebabs with peas, spinach, and aromatic spices.',
+    active: true,
+  },
+  {
+    id: '3',
+    name: 'Dal Makhani',
+    category: { id: '2', name: 'Main Course' },
+    price: 240,
+    description: 'Slow-cooked black lentils in a creamy tomato gravy.',
+    active: true,
+  },
+  {
+    id: '4',
+    name: 'Butter Chicken',
+    category: { id: '2', name: 'Main Course' },
+    price: 320,
+    description: 'Tender chicken cooked in a rich tomato-butter sauce.',
+    active: true,
+  },
+  {
+    id: '5',
+    name: 'Gulab Jamun',
+    category: { id: '3', name: 'Desserts' },
+    price: 100,
+    description: 'Soft milk dumplings soaked in sweet syrup.',
+    active: true,
+  },
+  {
+    id: '6',
+    name: 'Mango Lassi',
+    category: { id: '4', name: 'Beverages' },
+    price: 120,
+    description: 'Refreshing mango yogurt drink.',
+    active: true,
+  },
+]
+
+function generateOrderNumber() {
+  if (typeof window === 'undefined') {
+    return '0001'
+  }
+
+  const currentNumber = parseInt(window.localStorage.getItem('next-order-number') || '1')
+  const orderNumber = currentNumber.toString().padStart(4, '0')
+  window.localStorage.setItem('next-order-number', (currentNumber + 1).toString())
+  return orderNumber
+}
+
+function getStoredOrders(): Order[] {
+  if (typeof window === 'undefined') {
+    return []
+  }
+
+  const stored = window.localStorage.getItem('restaurant-orders')
+  if (!stored) {
+    return []
+  }
+
+  try {
+    return JSON.parse(stored) as Order[]
+  } catch {
+    return []
+  }
+}
+
+function saveOrdersToStorage(orders: Order[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem('restaurant-orders', JSON.stringify(orders))
 }
 
 export function useRestaurantData() {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
-  const [loading, setLoading] = useState(true)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(DEFAULT_MENU_ITEMS)
+  const [categories, setCategories] = useState<any[]>(DEFAULT_CATEGORIES)
+  const [orders, setOrders] = useState<Order[]>(getStoredOrders)
+  const [loading, setLoading] = useState(false)
   const [cart, setCart] = useState<CartItem[]>([])
   const [discount, setDiscount] = useState(0)
   const [customer, setCustomer] = useState('')
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null)
 
-  // Load data
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      const [menuRes, catRes, ordersRes] = await Promise.all([
-        menuItemsAPI.getAll({ active: true }),
-        categoriesAPI.getAll(true),
-        ordersAPI.getAll({ limit: 20 }), // Fetch all orders regardless of status
-      ])
-
-      setMenuItems(menuRes.data || [])
-      setCategories(catRes.data || [])
-      setOrders(ordersRes.data || [])
-    } catch (error) {
-      console.error('Error loading data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData()
+    setLoading(true)
+    setMenuItems(DEFAULT_MENU_ITEMS)
+    setCategories(DEFAULT_CATEGORIES)
+    setOrders(getStoredOrders())
+    setLoading(false)
   }, [])
 
-  // Add item to cart
+  useEffect(() => {
+    saveOrdersToStorage(orders)
+  }, [orders])
+
   const addToCart = (item: MenuItem) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === item.id)
@@ -86,124 +168,118 @@ export function useRestaurantData() {
     })
   }
 
-  // Remove item from cart
   const removeFromCart = (itemId: string) => {
     setCart(prev => prev.filter(i => i.id !== itemId))
   }
 
-  // Update quantity
   const updateQuantity = (itemId: string, delta: number) => {
-    setCart(prev => prev.map(i => {
-      if (i.id === itemId) {
-        const newQuantity = i.quantity + delta
-        if (newQuantity <= 0) {
-          return null
-        }
-        return { ...i, quantity: newQuantity }
-      }
-      return i
-    }).filter(i => i !== null))
+    setCart(prev =>
+      prev
+        .map(i => {
+          if (i.id !== itemId) return i
+          const newQuantity = i.quantity + delta
+          return newQuantity > 0 ? { ...i, quantity: newQuantity } : null
+        })
+        .filter((item): item is CartItem => item !== null)
+    )
   }
 
-  // Save order
   const saveOrder = async (orderType: string) => {
-    try {
-      if (cart.length === 0) {
-        throw new Error('Please add items to the order first!')
-      }
-
-      const items = cart.map(item => ({
-        menuItemId: item.id,
-        quantity: item.quantity,
-        price: item.price,
-      }))
-
-      let savedOrder
-      if (editingOrderId) {
-        // Update existing order
-        const res = await ordersAPI.updateItems(editingOrderId, items)
-        await ordersAPI.update(editingOrderId, {
-          customerName: customer || 'Guest',
-          discountPercent: discount,
-        })
-        setOrders(prev => prev.map(order =>
-          order.id === editingOrderId ? res.data : order
-        ))
-        setEditingOrderId(null)
-        savedOrder = res.data
-      } else {
-        // Create new order
-        const res = await ordersAPI.create({
-          orderType,
-          customerName: customer || 'Guest',
-          items,
-          discountPercent: discount,
-        })
-        setOrders(prev => [res.data, ...prev])
-        savedOrder = res.data
-      }
-
-      // Reset cart
-      setCart([])
-      setDiscount(0)
-      setCustomer('')
-
-      // Reload data to ensure dashboard is up to date
-      await loadData()
-
-      return savedOrder
-    } catch (error) {
-      console.error('Error saving order:', error)
-      throw error
+    if (cart.length === 0) {
+      throw new Error('Please add items to the order first!')
     }
+
+    const orderItems = cart.map(item => ({
+      menuItem: item,
+      quantity: item.quantity,
+      subtotal: item.price * item.quantity,
+    }))
+
+    const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0)
+    const tax = Math.round(subtotal * 0.05)
+    const discountAmount = Math.round(subtotal * (discount / 100))
+    const total = subtotal + tax - discountAmount
+
+    let savedOrder: Order
+
+    if (editingOrderId) {
+      const existingOrder = orders.find(o => o.id === editingOrderId)
+      savedOrder = {
+        id: editingOrderId,
+        orderNumber: existingOrder?.orderNumber || `ORD-${editingOrderId.slice(0, 6)}`,
+        orderType,
+        customerName: customer || 'Guest',
+        customerId: undefined,
+        subtotal,
+        tax,
+        discountPercent: discount,
+        discountAmount,
+        total,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        items: orderItems,
+      }
+
+      setOrders(prev => prev.map(order =>
+        order.id === editingOrderId ? savedOrder : order
+      ))
+      setEditingOrderId(null)
+    } else {
+      savedOrder = {
+        id: `${Date.now()}`,
+        orderNumber: generateOrderNumber(),
+        orderType,
+        customerName: customer || 'Guest',
+        customerId: undefined,
+        subtotal,
+        tax,
+        discountPercent: discount,
+        discountAmount,
+        total,
+        status: 'completed',
+        createdAt: new Date().toISOString(),
+        items: orderItems,
+      }
+
+      setOrders(prev => [savedOrder, ...prev])
+    }
+
+    setCart([])
+    setDiscount(0)
+    setCustomer('')
+
+    return savedOrder
   }
 
-  // Edit order
   const editOrder = (order: Order) => {
-    setCart(order.items.map((item: any) => ({
-      ...item.menuItem,
-      quantity: item.quantity,
-    })))
+    setCart(order.items.map(item => ({ ...item.menuItem, quantity: item.quantity })))
     setDiscount(order.discountPercent)
     setCustomer(order.customerName)
     setEditingOrderId(order.id)
   }
 
-  // Delete order
   const deleteOrder = async (orderId: string) => {
-    try {
-      await ordersAPI.delete(orderId)
-      setOrders(prev => prev.filter(o => o.id !== orderId))
-    } catch (error) {
-      console.error('Error deleting order:', error)
-      throw error
-    }
+    setOrders(prev => prev.filter(o => o.id !== orderId))
   }
 
-  // Calculate totals
-  const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = Math.round(subtotal * 0.05)
   const discountAmount = Math.round(subtotal * (discount / 100))
   const total = subtotal + tax - discountAmount
 
   return {
-    // Data
     menuItems,
     categories,
     orders,
     cart,
     loading,
     editingOrderId,
-
-    // Cart state
     discount,
     customer,
     subtotal,
     tax,
     discountAmount,
     total,
-
-    // Actions
     addToCart,
     removeFromCart,
     updateQuantity,
@@ -214,6 +290,6 @@ export function useRestaurantData() {
     saveOrder,
     editOrder,
     deleteOrder,
-    reloadData: loadData,
+    reloadData: async () => {},
   }
 }
