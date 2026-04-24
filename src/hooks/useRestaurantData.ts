@@ -12,11 +12,19 @@ export interface MenuItem {
   price: number
   description?: string
   image?: string
+  variants?: string[]
+  variantPrices?: {
+    half?: number
+    full?: number
+  }
   active: boolean
 }
 
 export interface CartItem extends MenuItem {
+  cartId: string
   quantity: number
+  selectedVariant?: string
+  variantPrice?: number
 }
 
 export interface Order {
@@ -126,6 +134,40 @@ function getStoredOrders(): Order[] {
   }
 }
 
+function getStoredMenuItems(): MenuItem[] {
+  if (typeof window === 'undefined') {
+    return DEFAULT_MENU_ITEMS
+  }
+
+  const stored = window.localStorage.getItem('restaurant-menu-items')
+  if (!stored) {
+    return DEFAULT_MENU_ITEMS
+  }
+
+  try {
+    return JSON.parse(stored) as MenuItem[]
+  } catch {
+    return DEFAULT_MENU_ITEMS
+  }
+}
+
+function getStoredCategories(): any[] {
+  if (typeof window === 'undefined') {
+    return DEFAULT_CATEGORIES
+  }
+
+  const stored = window.localStorage.getItem('restaurant-categories')
+  if (!stored) {
+    return DEFAULT_CATEGORIES
+  }
+
+  try {
+    return JSON.parse(stored) as any[]
+  } catch {
+    return DEFAULT_CATEGORIES
+  }
+}
+
 function saveOrdersToStorage(orders: Order[]) {
   if (typeof window === 'undefined') {
     return
@@ -134,11 +176,27 @@ function saveOrdersToStorage(orders: Order[]) {
   window.localStorage.setItem('restaurant-orders', JSON.stringify(orders))
 }
 
+function saveMenuItemsToStorage(menuItems: MenuItem[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem('restaurant-menu-items', JSON.stringify(menuItems))
+}
+
+function saveCategoriesToStorage(categories: any[]) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem('restaurant-categories', JSON.stringify(categories))
+}
+
 export function useRestaurantData() {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(DEFAULT_MENU_ITEMS)
-  const [categories, setCategories] = useState<any[]>(DEFAULT_CATEGORIES)
-  const [orders, setOrders] = useState<Order[]>(getStoredOrders)
-  const [loading, setLoading] = useState(false)
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
   const [cart, setCart] = useState<CartItem[]>([])
   const [discount, setDiscount] = useState(0)
   const [customer, setCustomer] = useState('')
@@ -146,8 +204,8 @@ export function useRestaurantData() {
 
   useEffect(() => {
     setLoading(true)
-    setMenuItems(DEFAULT_MENU_ITEMS)
-    setCategories(DEFAULT_CATEGORIES)
+    setMenuItems(getStoredMenuItems())
+    setCategories(getStoredCategories())
     setOrders(getStoredOrders())
     setLoading(false)
   }, [])
@@ -156,27 +214,46 @@ export function useRestaurantData() {
     saveOrdersToStorage(orders)
   }, [orders])
 
-  const addToCart = (item: MenuItem) => {
+  useEffect(() => {
+    saveMenuItemsToStorage(menuItems)
+  }, [menuItems])
+
+  useEffect(() => {
+    saveCategoriesToStorage(categories)
+  }, [categories])
+
+  const addToCart = (item: MenuItem, selectedVariant?: string, variantPrice?: number) => {
+    const cartId = selectedVariant ? `${item.id}-${selectedVariant}` : item.id
     setCart(prev => {
-      const existing = prev.find(i => i.id === item.id)
+      const existing = prev.find(i => i.cartId === cartId)
       if (existing) {
         return prev.map(i =>
-          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.cartId === cartId ? { ...i, quantity: i.quantity + 1 } : i
         )
       }
-      return [...prev, { ...item, quantity: 1 }]
+      return [
+        ...prev,
+        {
+          ...item,
+          cartId,
+          quantity: 1,
+          selectedVariant,
+          variantPrice,
+          price: variantPrice ?? item.price,
+        },
+      ]
     })
   }
 
-  const removeFromCart = (itemId: string) => {
-    setCart(prev => prev.filter(i => i.id !== itemId))
+  const removeFromCart = (cartId: string) => {
+    setCart(prev => prev.filter(i => i.cartId !== cartId))
   }
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const updateQuantity = (cartId: string, delta: number) => {
     setCart(prev =>
       prev
         .map(i => {
-          if (i.id !== itemId) return i
+          if (i.cartId !== cartId) return i
           const newQuantity = i.quantity + delta
           return newQuantity > 0 ? { ...i, quantity: newQuantity } : null
         })
@@ -262,6 +339,32 @@ export function useRestaurantData() {
     setOrders(prev => prev.filter(o => o.id !== orderId))
   }
 
+  const addCategory = (category: { id: string; name: string }) => {
+    setCategories(prev => [...prev, category])
+  }
+
+  const updateCategory = (category: { id: string; name: string }) => {
+    setCategories(prev => prev.map(c => c.id === category.id ? category : c))
+    setMenuItems(prev => prev.map(item => item.category.id === category.id ? { ...item, category } : item))
+  }
+
+  const deleteCategory = (categoryId: string) => {
+    setCategories(prev => prev.filter(c => c.id !== categoryId))
+    setMenuItems(prev => prev.filter(item => item.category.id !== categoryId))
+  }
+
+  const addMenuItem = (item: MenuItem) => {
+    setMenuItems(prev => [...prev, item])
+  }
+
+  const updateMenuItem = (item: MenuItem) => {
+    setMenuItems(prev => prev.map(prevItem => prevItem.id === item.id ? item : prevItem))
+  }
+
+  const deleteMenuItem = (itemId: string) => {
+    setMenuItems(prev => prev.filter(item => item.id !== itemId))
+  }
+
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = Math.round(subtotal * 0.05)
   const discountAmount = Math.round(subtotal * (discount / 100))
@@ -290,6 +393,12 @@ export function useRestaurantData() {
     saveOrder,
     editOrder,
     deleteOrder,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addMenuItem,
+    updateMenuItem,
+    deleteMenuItem,
     reloadData: async () => {},
   }
 }

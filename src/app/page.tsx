@@ -24,6 +24,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import Link from 'next/link'
 import {
   Home,
   Utensils,
@@ -71,7 +72,42 @@ export default function RestaurantBilling() {
   const [pendingTab, setPendingTab] = useState<string | null>(null)
   const [isUnsavedChangesModalOpen, setIsUnsavedChangesModalOpen] = useState(false)
 
-  // Reports state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false)
+  const [categoryFormName, setCategoryFormName] = useState('')
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null)
+
+  const [isPrintSettingsOpen, setIsPrintSettingsOpen] = useState(false)
+  const [printerType, setPrinterType] = useState('Thermal')
+  const [paperSize, setPaperSize] = useState('80mm')
+  const [printCopies, setPrintCopies] = useState(1)
+  const [selectedOrderDate, setSelectedOrderDate] = useState(() => new Date().toISOString().split('T')[0])
+
+  const [isCustomersOpen, setIsCustomersOpen] = useState(false)
+  const [isBackupOpen, setIsBackupOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [customers, setCustomers] = useState([
+    { id: '1', name: 'John Doe', phone: '9876543210', email: 'john@example.com' },
+    { id: '2', name: 'Jane Smith', phone: '9876543211', email: 'jane@example.com' },
+  ])
+  const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', email: '' })
+
+  const [isProductModalOpen, setIsProductModalOpen] = useState(false)
+  const [productForm, setProductForm] = useState({
+    name: '',
+    price: '',
+    description: '',
+    categoryId: '',
+    variants: { half: false, full: false },
+    variantPrices: { half: '', full: '' },
+    image: '',
+    active: true,
+  })
+  const [editingProductId, setEditingProductId] = useState<string | null>(null)
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({})
+
+  const [isVariantDialogOpen, setIsVariantDialogOpen] = useState(false)
+  const [selectedProductForVariant, setSelectedProductForVariant] = useState<any>(null)
+  const [tempSelectedVariant, setTempSelectedVariant] = useState<string>('')
   const [selectedReport, setSelectedReport] = useState<string | null>(null)
   const [reportData, setReportData] = useState<any>(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
@@ -100,10 +136,199 @@ export default function RestaurantBilling() {
     saveOrder: saveOrderToBackend,
     editOrder,
     deleteOrder,
+    addCategory,
+    updateCategory,
+    deleteCategory,
+    addMenuItem,
+    updateMenuItem,
+    deleteMenuItem,
     reloadData,
   } = useRestaurantData()
 
   const { settings } = useRestaurantSettings()
+
+  const formatOrderDate = (createdAt: string | Date) => {
+    const date = typeof createdAt === 'string' ? new Date(createdAt) : createdAt
+    return date.toISOString().split('T')[0]
+  }
+
+  const filteredOrders = orders.filter(order => formatOrderDate(order.createdAt) === selectedOrderDate)
+
+  useEffect(() => {
+    if (!productForm.categoryId && categories.length > 0) {
+      setProductForm(prev => ({ ...prev, categoryId: categories[0].id }))
+    }
+  }, [categories, productForm.categoryId])
+
+  const resetCategoryForm = () => {
+    setEditingCategoryId(null)
+    setCategoryFormName('')
+  }
+
+  const openAddCategory = () => {
+    resetCategoryForm()
+    setIsCategoryModalOpen(true)
+  }
+
+  const openEditCategory = (category: any) => {
+    setEditingCategoryId(category.id)
+    setCategoryFormName(category.name)
+    setIsCategoryModalOpen(true)
+  }
+
+  const handleCategorySave = () => {
+    const name = categoryFormName.trim()
+    if (!name) {
+      alert('Category name is required')
+      return
+    }
+    if (editingCategoryId) {
+      updateCategory({ id: editingCategoryId, name })
+    } else {
+      addCategory({ id: `cat-${Date.now()}`, name })
+    }
+    setIsCategoryModalOpen(false)
+    resetCategoryForm()
+  }
+
+  const handleCategoryDelete = (categoryId: string) => {
+    if (confirm('Delete category and remove its items?')) {
+      deleteCategory(categoryId)
+    }
+  }
+
+  const resetProductForm = () => {
+    setEditingProductId(null)
+    setProductForm({
+      name: '',
+      price: '',
+      description: '',
+      categoryId: categories[0]?.id || '',
+      variants: { half: false, full: false },
+      variantPrices: { half: '', full: '' },
+      image: '',
+      active: true,
+    })
+  }
+
+  const openAddProduct = () => {
+    resetProductForm()
+    setIsProductModalOpen(true)
+  }
+
+  const openEditProduct = (item: any) => {
+    setEditingProductId(item.id)
+    setProductForm({
+      name: item.name,
+      price: item.price.toString(),
+      description: item.description || '',
+      categoryId: item.category.id,
+      variants: {
+        half: item.variants?.includes('half') ?? false,
+        full: item.variants?.includes('full') ?? false,
+      },
+      variantPrices: {
+        half: item.variantPrices?.half?.toString() ?? '',
+        full: item.variantPrices?.full?.toString() ?? '',
+      },
+      image: item.image || '',
+      active: item.active,
+    })
+    setIsProductModalOpen(true)
+  }
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      setProductForm(prev => ({ ...prev, image: reader.result as string }))
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleProductSave = () => {
+    const name = productForm.name.trim()
+    const priceValue = Number(productForm.price)
+    const category = categories.find(cat => cat.id === productForm.categoryId)
+
+    if (!name || !priceValue || !category) {
+      alert('Please fill product name, price, and category')
+      return
+    }
+
+    const variants = Object.entries(productForm.variants)
+      .filter(([, active]) => active)
+      .map(([variant]) => variant)
+
+    const variantPrices: { half?: number; full?: number } = {}
+    if (productForm.variants.half) {
+      const halfValue = Number(productForm.variantPrices.half)
+      if (!halfValue) {
+        alert('Please enter a price for half variant')
+        return
+      }
+      variantPrices.half = halfValue
+    }
+    if (productForm.variants.full) {
+      const fullValue = Number(productForm.variantPrices.full)
+      if (!fullValue) {
+        alert('Please enter a price for full variant')
+        return
+      }
+      variantPrices.full = fullValue
+    }
+
+    const item = {
+      id: editingProductId ?? `item-${Date.now()}`,
+      name,
+      category,
+      price: priceValue,
+      description: productForm.description,
+      image: productForm.image,
+      variants,
+      variantPrices: Object.keys(variantPrices).length ? variantPrices : undefined,
+      active: productForm.active,
+    }
+
+    if (editingProductId) {
+      updateMenuItem(item)
+    } else {
+      addMenuItem(item)
+    }
+
+    setIsProductModalOpen(false)
+    resetProductForm()
+  }
+
+  const handleProductDelete = (itemId: string) => {
+    if (confirm('Delete this product?')) {
+      deleteMenuItem(itemId)
+    }
+  }
+
+  const setQuickBillVariant = (itemId: string, variant: string) => {
+    setSelectedVariants(prev => ({ ...prev, [itemId]: variant }))
+  }
+
+  const handleAddToCart = (item: any) => {
+    const variant = selectedVariants[item.id]
+    if (item.variantPrices && Object.keys(item.variantPrices).length > 0 && !variant) {
+      alert('Choose a variant before adding this product')
+      return
+    }
+    const variantPrice = variant ? item.variantPrices?.[variant] : undefined
+    addToCart(item, variant, variantPrice)
+  }
+
+  const handleVariantDialogConfirm = () => {
+    if (!tempSelectedVariant || !selectedProductForVariant) return
+    setSelectedVariants(prev => ({ ...prev, [selectedProductForVariant.id]: tempSelectedVariant }))
+    handleAddToCart(selectedProductForVariant)
+    setIsVariantDialogOpen(false)
+    setSelectedProductForVariant(null)
+    setTempSelectedVariant('')
+  }
 
   // Check authentication after all hooks are defined
   if (!user) {
@@ -655,7 +880,8 @@ export default function RestaurantBilling() {
                 <ScrollArea className="h-[calc(100vh-280px)] lg:h-[calc(100vh-200px)] pr-2">
                   <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                     {filteredMenu.map(item => {
-                      const cartItem = cart.find(i => i.id === item.id)
+                      const selectedVariant = selectedVariants[item.id]
+                      const cartItem = cart.find(i => i.cartId === (selectedVariant ? `${item.id}-${selectedVariant}` : item.id))
                       return (
                         <Card key={item.id} className="overflow-hidden hover:shadow-md transition-shadow border-gray-200">
                           <div className="bg-gradient-to-br from-gray-100 to-gray-200 h-24 flex items-center justify-center">
@@ -665,28 +891,59 @@ export default function RestaurantBilling() {
                             <div className="space-y-2">
                               <div>
                                 <h3 className="font-semibold text-sm text-gray-900 truncate">{item.name}</h3>
-                                <p className="text-xs text-gray-600">₹{item.price}</p>
+                                <p className="text-xs text-gray-600">
+                                  ₹{item.price}
+                                </p>
                               </div>
-                              {/* Quantity Controls */}
                               <div className="flex items-center justify-center gap-1">
                                 <Button
                                   size="icon"
                                   variant="outline"
                                   className="h-7 w-7 rounded-full border-red-500 text-red-500 hover:bg-red-500 hover:text-white"
-                                  onClick={() => cartItem && updateQuantity(item.id, -1)}
+                                  onClick={() => cartItem && updateQuantity(cartItem.cartId, -1)}
                                   disabled={!cartItem}
                                 >
                                   <Minus className="h-3 w-3" />
                                 </Button>
                                 <span className="w-8 text-center font-semibold text-sm">{cartItem?.quantity || 0}</span>
-                                <Button
-                                  size="icon"
-                                  variant="outline"
-                                  className="h-7 w-7 rounded-full border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
-                                  onClick={() => addToCart(item)}
-                                >
-                                  <Plus className="h-3 w-3" />
-                                </Button>
+                                {item.variantPrices && Object.keys(item.variantPrices).length > 0 ? (
+                                  <div className="flex flex-wrap gap-2">
+                                    {Object.entries(item.variantPrices).map(([variant, price]) => {
+                                      const variantCartItem = cart.find(i => i.cartId === `${item.id}-${variant}`)
+                                      return (
+                                        <Button
+                                          key={variant}
+                                          variant="outline"
+                                          className={`h-9 px-3 text-sm rounded-lg border-green-500 text-green-500 hover:bg-green-500 hover:text-white ${variantCartItem ? 'bg-green-500 text-white' : ''}`}
+                                          onClick={() => {
+                                            setSelectedVariants(prev => ({ ...prev, [item.id]: variant }))
+                                            const variantPrice = price as number
+                                            addToCart(item, variant, variantPrice)
+                                          }}
+                                        >
+                                          <span className="flex items-center gap-1">
+                                            <span className="capitalize">{variant}</span>
+                                            <span>₹{price}</span>
+                                            {variantCartItem?.quantity ? (
+                                              <span className="rounded-full bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                                                {variantCartItem.quantity}
+                                              </span>
+                                            ) : null}
+                                          </span>
+                                        </Button>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <Button
+                                    size="icon"
+                                    variant="outline"
+                                    className="h-9 w-9 rounded-full border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
+                                    onClick={() => handleAddToCart(item)}
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </CardContent>
@@ -730,11 +987,11 @@ export default function RestaurantBilling() {
 
                         <div className="space-y-0.5">
                             {cart.map(item => (
-                              <Card key={item.id} className="border-gray-200">
+                              <Card key={item.cartId} className="border-gray-200">
                                 <CardContent className="p-2">
                                   <div className="flex justify-between items-center gap-2">
                                     <div className="flex-1">
-                                      <p className="font-medium text-xs text-gray-900">{item.name}</p>
+                                      <p className="font-medium text-xs text-gray-900">{item.name}{item.selectedVariant ? ` (${item.selectedVariant})` : ''}</p>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <span className="text-[10px] text-gray-600">₹{item.price}</span>
@@ -742,7 +999,7 @@ export default function RestaurantBilling() {
                                         size="icon"
                                         variant="outline"
                                         className="h-5 w-5"
-                                        onClick={() => updateQuantity(item.id, -1)}
+                                        onClick={() => updateQuantity(item.cartId, -1)}
                                       >
                                         <Minus className="h-2 w-2" />
                                       </Button>
@@ -751,7 +1008,7 @@ export default function RestaurantBilling() {
                                         size="icon"
                                         variant="outline"
                                         className="h-5 w-5"
-                                        onClick={() => updateQuantity(item.id, 1)}
+                                        onClick={() => updateQuantity(item.cartId, 1)}
                                       >
                                         <Plus className="h-2 w-2" />
                                       </Button>
@@ -759,7 +1016,7 @@ export default function RestaurantBilling() {
                                         size="icon"
                                         variant="destructive"
                                         className="h-5 w-5 ml-1"
-                                        onClick={() => removeFromCart(item.id)}
+                                        onClick={() => removeFromCart(item.cartId)}
                                       >
                                         <Trash2 className="h-2 w-2" />
                                       </Button>
@@ -870,105 +1127,174 @@ export default function RestaurantBilling() {
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
-          <div className="px-4 py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Card className="border-gray-200">
-                <CardContent className="p-4">
-                  <p className="text-sm text-gray-600">Today's Orders</p>
-                  <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
-                </CardContent>
-              </Card>
-              <Card className="border-gray-200">
-                <CardContent className="p-4">
-                  <p className="text-sm text-gray-600">Total Amount</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    ₹{orders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
-                  </p>
+          <div className="px-2 py-2 grid grid-cols-3 gap-2 h-full">
+            {/* Left Column - Recent Orders (2/3 width) */}
+            <div className="col-span-2 flex flex-col space-y-2">
+              <Card className="border-gray-200 flex-1 flex flex-col">
+                <CardHeader className="py-2 px-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-sm">Recent Orders</CardTitle>
+                      <p className="text-[11px] text-gray-500">Showing orders for {new Date(selectedOrderDate).toLocaleDateString()}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="order-date" className="text-[11px] text-gray-500">Date</Label>
+                      <Input
+                        id="order-date"
+                        type="date"
+                        value={selectedOrderDate}
+                        onChange={e => setSelectedOrderDate(e.target.value)}
+                        className="h-9 w-36"
+                      />
+                      <Badge variant="secondary" className="text-xs">{filteredOrders.length}</Badge>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 px-3 py-2 overflow-hidden flex flex-col">
+                  <ScrollArea className="h-96 rounded-md border border-gray-100">
+                    <div className="p-2">
+                      {filteredOrders.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                          <FileText className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No orders yet</p>
+                          <p className="text-xs">Save an order to see it here</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-3 gap-1">
+                          {filteredOrders.map((order) => {
+                            const createdAt = typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt
+                            const timeDiff = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60))
+                            const timeAgo = timeDiff < 1 ? 'Just now' : `${timeDiff}h ago`
+                            const hasDiscount = order.discount > 0
+
+                            return (
+                              <Card key={order.id} className={`border-gray-200 ${hasDiscount ? 'bg-pink-100 border-pink-300' : ''}`}>
+                                <CardContent className="p-1">
+                                  <div className="text-center">
+                                    <p className="font-bold text-xs text-[#1E5BA8]">{order.orderNumber}</p>
+                                    <p className="text-[10px] text-gray-600">{order.orderType}</p>
+                                    <p className="font-semibold text-xs">₹{order.total.toLocaleString()}</p>
+                                    <p className="text-[10px] text-gray-500">{timeAgo}</p>
+                                    {hasDiscount && <p className="text-[9px] text-pink-600 font-semibold">Discount: ₹{order.discount}</p>}
+                                    <div className="flex gap-0.5 mt-0.5">
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 h-5 text-[10px] px-0.5"
+                                        onClick={() => {
+                                          setViewingOrder(order)
+                                          setIsViewOrderModalOpen(true)
+                                        }}
+                                      >
+                                        <Eye className="h-2.5 w-2.5" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 h-5 text-[10px] px-0.5"
+                                        onClick={() => {
+                                          editOrder(order)
+                                          setActiveTab('quick-bill')
+                                        }}
+                                      >
+                                        <Pencil className="h-2.5 w-2.5" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        className="flex-1 h-5 text-[10px] px-0.5 border-red-300 text-red-600 hover:bg-red-50"
+                                        onClick={async () => {
+                                          if (confirm(`Delete ${order.orderNumber}?`)) {
+                                            try {
+                                              await deleteOrder(order.id)
+                                              alert('Order deleted successfully!')
+                                            } catch (error: any) {
+                                              alert(error.message || 'Failed to delete order')
+                                            }
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 className="h-2.5 w-2.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
                 </CardContent>
               </Card>
             </div>
 
-            <Card className="border-gray-200 flex-1 flex flex-col">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Recent Orders</CardTitle>
-                  <Badge variant="secondary">{orders.length} orders</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="flex-1">
-                <ScrollArea className="h-[calc(100vh-380px)]">
-                  {orders.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                      <p className="text-lg">No orders yet</p>
-                      <p className="text-sm">Save an order to see it here</p>
+            {/* Right Column - Statistics (1/3 width) */}
+            <div className="grid grid-cols-2 gap-2 auto-rows-max">
+              {/* Today's Sales */}
+              <Card className="border-gray-200 bg-gradient-to-br from-blue-50 to-blue-100">
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-gray-600 font-medium">Sales for selected date</p>
+                      <p className="text-lg font-bold text-blue-900">
+                        ₹{filteredOrders.reduce((sum, order) => sum + order.total, 0).toLocaleString()}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-4 gap-2">
-                      {orders.map((order) => {
-                        const createdAt = typeof order.createdAt === 'string' ? new Date(order.createdAt) : order.createdAt
-                        const timeDiff = Math.floor((Date.now() - createdAt.getTime()) / (1000 * 60 * 60))
-                        const timeAgo = timeDiff < 1 ? 'Just now' : `${timeDiff}h ago`
+                    <div className="h-8 w-8 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <IndianRupee className="h-4 w-4 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                        return (
-                          <Card key={order.id} className="border-gray-200">
-                            <CardContent className="p-2">
-                              <div className="text-center">
-                                <p className="font-bold text-sm text-[#1E5BA8]">{order.orderNumber}</p>
-                                <p className="text-xs text-gray-600">{order.orderType}</p>
-                                <p className="font-semibold text-sm">₹{order.total.toLocaleString()}</p>
-                                <p className="text-xs text-gray-500">{timeAgo}</p>
-                                <div className="flex gap-1 mt-1">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 h-6 text-xs px-1"
-                                    onClick={() => {
-                                      setViewingOrder(order)
-                                      setIsViewOrderModalOpen(true)
-                                    }}
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 h-6 text-xs px-1"
-                                    onClick={() => {
-                                      editOrder(order)
-                                      setActiveTab('quick-bill')
-                                    }}
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="flex-1 h-6 text-xs px-1 border-red-300 text-red-600 hover:bg-red-50"
-                                    onClick={async () => {
-                                      if (confirm(`Delete ${order.orderNumber}?`)) {
-                                        try {
-                                          await deleteOrder(order.id)
-                                          alert('Order deleted successfully!')
-                                        } catch (error: any) {
-                                          alert(error.message || 'Failed to delete order')
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        )
-                      })}
+              {/* Total Orders */}
+              <Card className="border-gray-200 bg-gradient-to-br from-green-50 to-green-100">
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-gray-600 font-medium">Total Orders</p>
+                      <p className="text-lg font-bold text-green-900">{filteredOrders.length}</p>
                     </div>
-                  )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                    <div className="h-8 w-8 bg-green-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <ShoppingCart className="h-4 w-4 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Average Sale */}
+              <Card className="border-gray-200 bg-gradient-to-br from-purple-50 to-purple-100 col-span-2">
+                <CardContent className="p-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] text-gray-600 font-medium">Average Sale</p>
+                      <p className="text-lg font-bold text-purple-900">
+                        ₹{filteredOrders.length > 0 ? Math.round(filteredOrders.reduce((sum, order) => sum + order.total, 0) / filteredOrders.length).toLocaleString() : 0}
+                      </p>
+                    </div>
+                    <div className="h-8 w-8 bg-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Percent className="h-4 w-4 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Order Type Breakdown */}
+
+              {/* Discount Summary */}
+              {orders.some(o => o.discount > 0) && (
+                <Card className="border-gray-200 bg-gradient-to-br from-red-50 to-red-100 col-span-2">
+                  <CardContent className="p-2">
+                    <p className="text-[10px] text-gray-600 font-medium">Total Discounts</p>
+                    <p className="text-lg font-bold text-red-900">
+                      ₹{orders.reduce((sum, order) => sum + (order.discount || 0), 0).toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </div>
         )}
 
@@ -982,62 +1308,139 @@ export default function RestaurantBilling() {
                     <Zap className="h-6 w-6" />
                   </div>
                   <div>
-                    <h3 className="font-bold">Scan Menu with AI</h3>
-                    <p className="text-sm text-blue-100">Quickly add products</p>
+                    <h3 className="font-bold">Product Manager</h3>
+                    <p className="text-sm text-blue-100">Add categories, products, variants, and images</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <div className="flex gap-2">
-              <Select defaultValue="all">
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="outline" size="icon">
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-600">Total Products: {menuItems.length}</p>
-              <Button className="bg-[#1E5BA8] hover:bg-[#1E5BA8]/90">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Product
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {menuItems.slice(0, 8).map((item) => (
-                <Card key={item.id} className="border-gray-200 overflow-hidden">
-                  <div className="bg-[#1E5BA8] text-white px-3 py-1 flex items-center justify-between">
-                    <Badge className="bg-green-500 hover:bg-green-500 text-white border-0">Active</Badge>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-white hover:bg-white/20">
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
+            <div className="grid lg:grid-cols-[280px_minmax(0,1fr)] gap-4">
+              <Card className="border-gray-200">
+                <CardHeader className="px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm">Categories</CardTitle>
+                    <Button size="sm" onClick={openAddCategory}>Add</Button>
                   </div>
-                  <CardContent className="p-3">
-                    <h3 className="font-semibold text-sm truncate">{item.name}</h3>
-                    <p className="text-xs text-gray-600 mb-2">{item.category?.name}</p>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-xs text-gray-500">Price (w/ GST)</p>
-                        <p className="font-bold text-sm">₹{item.price}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Your Price</p>
-                        <p className="font-bold text-sm text-green-600">₹{item.price}</p>
-                      </div>
+                </CardHeader>
+                <CardContent className="space-y-3 px-4 py-3">
+                  {categories.length === 0 ? (
+                    <p className="text-sm text-gray-500">No categories yet. Add one to manage products.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {categories.map((category) => (
+                        <div key={category.id} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+                          <div>
+                            <p className="text-sm font-medium">{category.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {menuItems.filter(item => item.category.id === category.id).length} items
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => openEditCategory(category)}>
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="ghost" className="border border-red-200 text-red-600" onClick={() => handleCategoryDelete(category.id)}>
+                              Del
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  )}
+                </CardContent>
+              </Card>
+
+              <div className="space-y-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Products: {menuItems.length}</p>
+                    <p className="text-xs text-gray-500">Manage products with variants and images.</p>
+                  </div>
+                  <Button className="bg-[#1E5BA8] hover:bg-[#1E5BA8]/90" onClick={openAddProduct}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Product
+                  </Button>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory} className="w-full sm:w-60">
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="All">All</SelectItem>
+                      {categories.map(category => (
+                        <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="icon" className="w-12">
+                    <Search className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="grid lg:grid-cols-2 gap-3">
+                  {filteredMenu.length === 0 ? (
+                    <Card className="border-dashed border-gray-300 text-center py-10">
+                      <p className="text-sm text-gray-500">No products found for this category.</p>
+                    </Card>
+                  ) : (
+                    filteredMenu.map((item) => (
+                      <Card key={item.id} className="border-gray-200 overflow-hidden">
+                        {item.image ? (
+                          <img src={item.image} alt={item.name} className="h-36 w-full object-cover" />
+                        ) : (
+                          <div className="h-36 w-full bg-gray-100 flex items-center justify-center text-gray-400 text-xs">
+                            No image selected
+                          </div>
+                        )}
+                        <CardContent className="p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <h3 className="font-semibold text-sm truncate">{item.name}</h3>
+                              <p className="text-[11px] text-gray-500">{item.category?.name}</p>
+                            </div>
+                            <Badge className={`border-0 ${item.active ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-700'}`}>
+                              {item.active ? 'Active' : 'Inactive'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-gray-500 min-h-[38px]">{item.description || 'No description available.'}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {item.variantPrices ? (
+                              Object.entries(item.variantPrices).map(([variant, price]) => (
+                                <span key={variant} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
+                                  {variant} ₹{price}
+                                </span>
+                              ))
+                            ) : (
+                              (item.variants || []).map(variant => (
+                                <span key={variant} className="rounded-full bg-blue-50 px-2 py-1 text-[10px] text-blue-700">
+                                  {variant}
+                                </span>
+                              ))
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-[11px] text-gray-500">Price</p>
+                              <p className="font-semibold">₹{item.price}</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => openEditProduct(item)}>
+                                Edit
+                              </Button>
+                              <Button size="sm" variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" onClick={() => handleProductDelete(item.id)}>
+                                Del
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1059,19 +1462,22 @@ export default function RestaurantBilling() {
             <div>
               <h3 className="font-semibold text-sm text-gray-700 mb-2">Quick Reports</h3>
               <div className="grid grid-cols-2 gap-3">
-                {['Sales Report', 'Item Wise', 'Category Wise', 'Daily Report'].map((report) => (
-                  <Card
-                    key={report}
-                    className="border-gray-200 hover:shadow-md cursor-pointer"
-                    onClick={() => fetchReport(report)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-[#1E5BA8]" />
-                        <span className="text-sm font-medium">{report}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
+                {[
+                  { label: 'Sales Report', href: '/reports/sales-report' },
+                  { label: 'Item Wise', href: '/reports/item-wise' },
+                  { label: 'Category Wise', href: '/reports/category-wise' },
+                  { label: 'Daily Report', href: '/reports/daily-report' },
+                ].map((report) => (
+                  <Link key={report.label} href={report.href} className="block">
+                    <Card className="border-gray-200 hover:shadow-md cursor-pointer">
+                      <CardContent className="p-3">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-5 w-5 text-[#1E5BA8]" />
+                          <span className="text-sm font-medium">{report.label}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))}
                 {['Staff Report', 'Customer Report', 'Payment Method', 'Hourly Report'].map((report) => (
                   <Card
@@ -1126,15 +1532,16 @@ export default function RestaurantBilling() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {[
-                  { icon: User, label: 'Customers', desc: 'Manage customers' },
-                  { icon: Printer, label: 'Print Settings', desc: 'Configure printers' },
-                  { icon: Save, label: 'Backup', desc: 'Data backup' },
-                  { icon: MoreHorizontal, label: 'Settings', desc: 'App settings' },
+                  { icon: User, label: 'Customers', desc: 'Manage customers', action: () => setIsCustomersOpen(true) },
+                  { icon: Printer, label: 'Print Settings', desc: 'Configure printers', action: () => setIsPrintSettingsOpen(true) },
+                  { icon: Save, label: 'Backup', desc: 'Data backup', action: () => setIsBackupOpen(true) },
+                  { icon: MoreHorizontal, label: 'Settings', desc: 'App settings', action: () => setIsSettingsOpen(true) },
                 ].map((item, index) => (
                   <Button
                     key={index}
                     variant="ghost"
                     className="w-full justify-start h-auto py-3 px-4 hover:bg-gray-100"
+                    onClick={item.action}
                   >
                     <item.icon className="h-5 w-5 mr-3 text-[#1E5BA8]" />
                     <div className="text-left">
@@ -1163,6 +1570,450 @@ export default function RestaurantBilling() {
           </div>
         )}
       </main>
+
+      <Dialog open={isCategoryModalOpen} onOpenChange={setIsCategoryModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingCategoryId ? 'Edit Category' : 'Add Category'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="category-name">Category Name</Label>
+              <Input
+                id="category-name"
+                value={categoryFormName}
+                onChange={e => setCategoryFormName(e.target.value)}
+                placeholder="Enter category name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCategoryModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCategorySave}>
+              {editingCategoryId ? 'Update' : 'Add'} Category
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPrintSettingsOpen} onOpenChange={setIsPrintSettingsOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Print Settings</DialogTitle>
+            <DialogDescription>
+              Configure your printer preferences and apply them before printing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1">
+              <Label htmlFor="printer-type">Printer Type</Label>
+              <Select value={printerType} onValueChange={setPrinterType}>
+                <SelectTrigger id="printer-type" className="w-full">
+                  <SelectValue placeholder="Select printer type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Thermal">Thermal</SelectItem>
+                  <SelectItem value="A4">A4</SelectItem>
+                  <SelectItem value="POS">POS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="paper-size">Paper Size</Label>
+              <Select value={paperSize} onValueChange={setPaperSize}>
+                <SelectTrigger id="paper-size" className="w-full">
+                  <SelectValue placeholder="Select paper size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="80mm">80mm</SelectItem>
+                  <SelectItem value="58mm">58mm</SelectItem>
+                  <SelectItem value="A4">A4</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="print-copies">Copies</Label>
+              <Input
+                id="print-copies"
+                type="number"
+                min={1}
+                value={printCopies}
+                onChange={e => setPrintCopies(Number(e.target.value) || 1)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" onClick={() => setIsPrintSettingsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => {
+              setIsPrintSettingsOpen(false)
+              window.print()
+            }}>
+              Save & Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isCustomersOpen} onOpenChange={setIsCustomersOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Customer Management</DialogTitle>
+            <DialogDescription>
+              Manage your restaurant customers and their information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Customers ({customers.length})</h3>
+              <Button size="sm" onClick={() => setNewCustomer({ name: '', phone: '', email: '' })}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Customer
+              </Button>
+            </div>
+
+            {newCustomer.name && (
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Input
+                      placeholder="Customer Name"
+                      value={newCustomer.name}
+                      onChange={e => setNewCustomer(prev => ({ ...prev, name: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Phone Number"
+                      value={newCustomer.phone}
+                      onChange={e => setNewCustomer(prev => ({ ...prev, phone: e.target.value }))}
+                    />
+                    <Input
+                      placeholder="Email (optional)"
+                      value={newCustomer.email}
+                      onChange={e => setNewCustomer(prev => ({ ...prev, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" onClick={() => {
+                      if (newCustomer.name && newCustomer.phone) {
+                        setCustomers(prev => [...prev, { ...newCustomer, id: Date.now().toString() }])
+                        setNewCustomer({ name: '', phone: '', email: '' })
+                      }
+                    }}>
+                      Save Customer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setNewCustomer({ name: '', phone: '', email: '' })}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="space-y-2">
+              {customers.map(customer => (
+                <Card key={customer.id} className="border-gray-200">
+                  <CardContent className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{customer.name}</h4>
+                        <p className="text-sm text-gray-600">📞 {customer.phone}</p>
+                        {customer.email && <p className="text-sm text-gray-600">✉️ {customer.email}</p>}
+                      </div>
+                      <Button size="sm" variant="outline" className="border-red-300 text-red-600 hover:bg-red-50">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCustomersOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isBackupOpen} onOpenChange={setIsBackupOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Data Backup</DialogTitle>
+            <DialogDescription>
+              Backup and restore your restaurant data.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Button className="w-full" onClick={() => {
+                const data = {
+                  menuItems,
+                  categories,
+                  orders,
+                  customers,
+                  settings,
+                  timestamp: new Date().toISOString()
+                }
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `restaurant-backup-${new Date().toISOString().split('T')[0]}.json`
+                document.body.appendChild(a)
+                a.click()
+                document.body.removeChild(a)
+                URL.revokeObjectURL(url)
+                alert('Backup downloaded successfully!')
+              }}>
+                <Save className="h-4 w-4 mr-2" />
+                Download Backup
+              </Button>
+
+              <div className="border-t pt-4">
+                <Label htmlFor="restore-file">Restore from Backup</Label>
+                <Input
+                  id="restore-file"
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) {
+                      const reader = new FileReader()
+                      reader.onload = (e) => {
+                        try {
+                          const data = JSON.parse(e.target?.result as string)
+                          if (confirm('This will replace all current data. Are you sure?')) {
+                            // Here you would implement the restore logic
+                            alert('Restore functionality would be implemented here')
+                          }
+                        } catch (error) {
+                          alert('Invalid backup file')
+                        }
+                      }
+                      reader.readAsText(file)
+                    }
+                  }}
+                  className="mt-2"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsBackupOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>App Settings</DialogTitle>
+            <DialogDescription>
+              Configure application preferences and behavior.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="dark-mode">Dark Mode</Label>
+                <Button variant="outline" size="sm">
+                  Coming Soon
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="notifications">Notifications</Label>
+                <Button variant="outline" size="sm">
+                  Coming Soon
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="auto-save">Auto Save</Label>
+                <Button variant="outline" size="sm">
+                  Coming Soon
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="language">Language</Label>
+                <Select defaultValue="en">
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="hi">हिंदी</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-semibold mb-2">App Information</h4>
+              <div className="text-sm text-gray-600 space-y-1">
+                <p>Version: 1.0.0</p>
+                <p>Last Updated: {new Date().toLocaleDateString()}</p>
+                <p>Orders: {orders.length}</p>
+                <p>Menu Items: {menuItems.length}</p>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsSettingsOpen(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isProductModalOpen} onOpenChange={setIsProductModalOpen}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingProductId ? 'Edit Product' : 'Add Product'}</DialogTitle>
+            <DialogDescription>
+              Create or update product details, variants and image.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="product-name">Name</Label>
+                <Input
+                  id="product-name"
+                  value={productForm.name}
+                  onChange={e => setProductForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Product name"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="product-price">Price</Label>
+                <Input
+                  id="product-price"
+                  value={productForm.price}
+                  onChange={e => setProductForm(prev => ({ ...prev, price: e.target.value }))}
+                  placeholder="Price"
+                  type="number"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="product-category">Category</Label>
+                <Select value={productForm.categoryId} onValueChange={value => setProductForm(prev => ({ ...prev, categoryId: value }))}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="product-image">Image</Label>
+                <Input id="product-image" type="file" accept="image/*" onChange={handleImageUpload} />
+                {productForm.image && (
+                  <img src={productForm.image} alt="Preview" className="mt-2 h-24 w-full rounded-md object-cover" />
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="product-description">Description</Label>
+              <Input
+                id="product-description"
+                value={productForm.description}
+                onChange={e => setProductForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Short description"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Variants</p>
+              <div className="flex flex-wrap gap-2">
+                {['half', 'full'].map((variant) => (
+                  <Button
+                    key={variant}
+                    variant={productForm.variants[variant as 'half' | 'full'] ? 'secondary' : 'outline'}
+                    size="sm"
+                    className="rounded-full"
+                    onClick={() => setProductForm(prev => ({
+                      ...prev,
+                      variants: {
+                        ...prev.variants,
+                        [variant]: !prev.variants[variant as 'half' | 'full'],
+                      },
+                    }))}
+                  >
+                    {variant}
+                  </Button>
+                ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {productForm.variants.half && (
+                  <div className="space-y-1">
+                    <Label htmlFor="variant-half-price">Half Variant Price</Label>
+                    <Input
+                      id="variant-half-price"
+                      type="number"
+                      value={productForm.variantPrices.half}
+                      onChange={e => setProductForm(prev => ({
+                        ...prev,
+                        variantPrices: { ...prev.variantPrices, half: e.target.value },
+                      }))}
+                      placeholder="Price for half"
+                    />
+                  </div>
+                )}
+                {productForm.variants.full && (
+                  <div className="space-y-1">
+                    <Label htmlFor="variant-full-price">Full Variant Price</Label>
+                    <Input
+                      id="variant-full-price"
+                      type="number"
+                      value={productForm.variantPrices.full}
+                      onChange={e => setProductForm(prev => ({
+                        ...prev,
+                        variantPrices: { ...prev.variantPrices, full: e.target.value },
+                      }))}
+                      placeholder="Price for full"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Input
+                id="product-active"
+                type="checkbox"
+                checked={productForm.active}
+                onChange={e => setProductForm(prev => ({ ...prev, active: e.target.checked }))}
+              />
+              <Label htmlFor="product-active">Active product</Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsProductModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleProductSave}>
+              {editingProductId ? 'Update' : 'Add'} Product
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bottom Action Bar (Only for Quick Bill on Mobile) */}
       {activeTab === 'quick-bill' && cart.length > 0 && (
@@ -1677,6 +2528,43 @@ export default function RestaurantBilling() {
           ) : null}
           <DialogFooter>
             <Button onClick={() => setIsReportModalOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Variant Selection Dialog */}
+      <Dialog open={isVariantDialogOpen} onOpenChange={setIsVariantDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl text-[#1E5BA8]">Choose Variant</DialogTitle>
+            <DialogDescription>
+              Select a variant for {selectedProductForVariant?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {selectedProductForVariant?.variantPrices && Object.entries(selectedProductForVariant.variantPrices).map(([variant, price]) => (
+              <Button
+                key={variant}
+                variant={tempSelectedVariant === variant ? 'default' : 'outline'}
+                className={`w-full justify-between ${tempSelectedVariant === variant ? 'bg-[#1E5BA8] hover:bg-[#1E5BA8]/90' : ''}`}
+                onClick={() => setTempSelectedVariant(variant)}
+              >
+                <span className="capitalize">{variant}</span>
+                <span className="font-semibold">₹{price}</span>
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsVariantDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleVariantDialogConfirm}
+              disabled={!tempSelectedVariant}
+              className="bg-[#1E5BA8] hover:bg-[#1E5BA8]/90"
+            >
+              Add to Cart
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
